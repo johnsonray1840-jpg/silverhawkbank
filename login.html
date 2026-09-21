@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en" x-data="{ darkMode: false }" x-init="darkMode = localStorage.getItem('darkMode') === 'true' || (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches)" :class="{ 'dark': darkMode }">
+<head>
+    <title>Account Login - Silverhawk</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="ns5jyVjzCsrQzTl2woLDTk6Odj7ihnKrTsrOKpZA">
+    <meta name="robots" content="index, follow">
+    <meta name="apple-mobile-web-app-title" content="Silverhawk">
+    <meta name="application-name" content="Silverhawk">
+    <meta name="description" content="Swift and Secure Money Transfer to any UK bank account will become a breeze with Silverhawk.">
+    <link rel="shortcut icon" href="storage/app/public/photos/tNFUE3sGZGbamIg8jLS8E0F8tIgI1ByGmVMWxouN.png">
+    
+    <!-- Dark mode initialization -->
+    <script>
+        // Dark mode initialization before page loads
+        const isDarkMode = localStorage.getItem('darkMode') === 'true' || 
+                          (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        
+        if (isDarkMode) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+    
+    <!-- Tailwind CSS with custom color variables -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { // Dynamic primary colors from appearance settings
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            DEFAULT: '#0ea5e9',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            foreground: '#ffffff',
+                        },
+                        secondary: { // Dynamic secondary colors from appearance settings
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            400: '#94a3b8',
+                            DEFAULT: '#64748b',
+                            500: '#64748b',
+                            600: '#475569',
+                            700: '#334155',
+                            foreground: '#0f172a',
+                        },
+                        accent: { // Dynamic accent colors from appearance settings
+                            50: '#fdf2f8',
+                            100: '#fce7f3',
+                            200: '#fbcfe8',
+                            300: '#f9a8d4',
+                            400: '#f472b6',
+                            DEFAULT: '#ec4899',
+                            500: '#ec4899',
+                            600: '#db2777',
+                            700: '#be185d',
+                            foreground: '#ffffff',
+                        },
+                        background: '#f8fafc',
+                        foreground: '#1e293b',
+                        card: {
+                            DEFAULT: '#ffffff',
+                            foreground: '#1e293b',
+                        },
+                        muted: {
+                            DEFAULT: '#f1f5f9',
+                            foreground: '#64748b',
+                        },
+                        border: '#e2e8f0',
+                        input: '#e2e8f0',
+                        ring: '#0ea5e9',
+                        
+                        // Specific colors from original design for gradients/highlights
+                        'gradient-pink-from': '#ec4899',
+                        'gradient-purple-via': '#a855f7',
+                        'gradient-indigo-to': '#4f46e5',
+                        
+                        'mobile-header-bg': '#1e293b', // Dark slate for mobile top section
+                        'mobile-header-text': '#f1f5f9', // Light text for mobile top section
+                        
+                        'yellow-action': '#facc15',
+                        'green-positive': '#22c55e',
+                        'red-negative': '#ef4444',
+                    },
+                    boxShadow: {
+                        'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04)',
+                        'top': '0 -4px 12px -1px rgba(0,0,0,0.05), 0 -2px 8px -1px rgba(0,0,0,0.03)',
+                    },
+                    borderRadius: {
+                        lg: '0.75rem',
+                        xl: '0.75rem', 
+                        '2xl': '1rem',
+                        '3xl': '1.5rem',
+                    },
+                    keyframes: {
+                        pulse: {
+                          '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(14, 165, 233, 0.4)' }, // primary color
+                          '50%': { transform: 'scale(1.05)', boxShadow: '0 0 0 10px rgba(14, 165, 233, 0)' },
+                        },
+                        shine: { 
+                          '0%': { transform: 'translateX(-100%) translateY(-100%) rotate(45deg)' },
+                          '100%': { transform: 'translateX(100%) translateY(100%) rotate(45deg)' },
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 2.5s infinite',
+                        'shine-once': 'shine 1.5s ease-in-out',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/aquawolf04/font-awesome-pro@5cd1511/css/all.css">
+    
+    <!-- External Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+        
+        
+    <style>
+        body {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: theme('colors.background');
+            color: theme('colors.foreground');
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #e2e8f0; } /* slate-200 */
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; } /* slate-400 */
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; } /* slate-500 */
+
+        .dark ::-webkit-scrollbar-track { background: #374151; } /* gray-700 */
+        .dark ::-webkit-scrollbar-thumb { background: #6b7280; } /* gray-500 */
+        .dark ::-webkit-scrollbar-thumb:hover { background: #9ca3af; } /* gray-400 */
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; } /* slate-300 */
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; } /* slate-400 */
+
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #6b7280; } /* gray-500 */
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; } /* gray-400 */
+
+        .shine-effect-container { position: relative; overflow: hidden; }
+        .shine-effect {
+            position: absolute; top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0) 100%);
+            transform: rotate(45deg); opacity: 0; transition: opacity 0.5s;
+        }
+        .shine-effect-container:hover .shine-effect { opacity: 1; animation: shine-once 1.5s ease-in-out; }
+
+        .fade-in-section { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease-out, transform 0.6s ease-out; }
+        .fade-in-section.is-visible { opacity: 1; transform: translateY(0); }
+
+        /* Floating elements animation */
+        .floating {
+            animation: floating 3s ease-in-out infinite;
+        }
+        .floating-slow {
+            animation: floating 6s ease-in-out infinite;
+        }
+        .floating-slower {
+            animation: floating 8s ease-in-out infinite;
+        }
+        
+        @keyframes  floating {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        /* Interactive elements */
+        .input-wrapper {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .input-wrapper:focus-within {
+            transform: translateY(-2px);
+        }
+        
+        .input-icon {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            left: 1rem;
+            color: #94a3b8;
+            transition: color 0.3s ease;
+        }
+        
+        .input-wrapper:focus-within .input-icon {
+            color: var(--primary-color);
+        }
+        
+        input:focus + .input-toggle {
+            color: var(--primary-color);
+        }
+        
+        .dark .input-icon {
+            color: #6b7280;
+        }
+        
+        /* Dark mode toggle button styling */
+        .dark-mode-toggle {
+            transition: all 0.3s ease;
+        }
+        
+        .dark-mode-toggle:hover {
+            transform: scale(1.1);
+        }
+    </style>
+    
+    <!-- Ultra Modern Loading Animation -->
+    <style>
+        .page-loading {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transition: all .6s cubic-bezier(0.4, 0, 0.2, 1);
+            background: radial-gradient(ellipse at center, rgba(14, 165, 233, 0.08) 0%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 1) 100%);
+            backdrop-filter: blur(2px);
+            visibility: hidden;
+            z-index: 9999;
+        }
+        
+        .dark .page-loading {
+            background: radial-gradient(ellipse at center, rgba(14, 165, 233, 0.12) 0%, rgba(17, 24, 39, 0.95) 50%, rgba(17, 24, 39, 1) 100%);
+        }
+        .page-loading.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .page-loading-inner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            transition: all .4s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+        }
+        .page-loading.active>.page-loading-inner {
+            opacity: 1;
+        }
+        
+        .loading-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        /* Floating particles background */
+        .loading-particles {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: linear-gradient(45deg, #0ea5e9, #4f46e5);
+            border-radius: 50%;
+            opacity: 0.6;
+            animation: floatParticle 4s ease-in-out infinite;
+        }
+        
+        .particle:nth-child(1) { top: 20%; left: 20%; animation-delay: 0s; }
+        .particle:nth-child(2) { top: 80%; left: 80%; animation-delay: 0.5s; }
+        .particle:nth-child(3) { top: 60%; left: 20%; animation-delay: 1s; }
+        .particle:nth-child(4) { top: 30%; left: 70%; animation-delay: 1.5s; }
+        .particle:nth-child(5) { top: 70%; left: 30%; animation-delay: 2s; }
+        .particle:nth-child(6) { top: 10%; left: 60%; animation-delay: 2.5s; }
+        
+        .loading-animation {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 120px;
+            height: 120px;
+            margin-bottom: 2rem;
+            position: relative;
+            filter: drop-shadow(0 0 20px rgba(14, 165, 233, 0.2));
+        }
+        
+        /* Outer orbital rings */
+        .loading-animation .orbit-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid rgba(14, 165, 233, 0.2);
+            animation: rotateOrbit 8s linear infinite;
+        }
+        
+        .orbit-ring:nth-child(1) {
+            width: 100%;
+            height: 100%;
+            border-top: 2px solid #0ea5e9;
+            border-right: 2px solid rgba(14, 165, 233, 0.3);
+            animation-duration: 2s;
+        }
+        
+        .orbit-ring:nth-child(2) {
+            width: 80%;
+            height: 80%;
+            top: 10%;
+            left: 10%;
+            border-bottom: 2px solid #0ea5e9;
+            border-left: 2px solid rgba(14, 165, 233, 0.3);
+            animation-duration: 2.5s;
+            animation-direction: reverse;
+        }
+        
+        .orbit-ring:nth-child(3) {
+            width: 60%;
+            height: 60%;
+            top: 20%;
+            left: 20%;
+            border-top: 2px solid #0ea5e9;
+            border-right: 2px solid rgba(14, 165, 233, 0.3);
+            animation-duration: 3s;
+        }
+        
+        /* Inner spinning circles */
+        .loading-animation .inner-circle {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #0ea5e9;
+            box-shadow: 0 0 10px rgba(14, 165, 233, 0.6);
+            animation: spinInner 2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+        }
+        
+        .inner-circle:nth-child(4) {
+            border-top: 3px solid #0ea5e9;
+            border-right: 3px solid rgba(14, 165, 233, 0.4);
+            animation-delay: 0s;
+        }
+        
+        .inner-circle:nth-child(5) {
+            border-bottom: 3px solid #0ea5e9;
+            border-left: 3px solid rgba(14, 165, 233, 0.4);
+            animation-delay: 0.3s;
+            animation-direction: reverse;
+        }
+        
+        /* Glowing core with morphing effect */
+        .loading-animation .core {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #0ea5e9, #4f46e5);
+            background-size: 200% 200%;
+            box-shadow: 
+                0 0 20px rgba(14, 165, 233, 0.6),
+                0 0 40px rgba(14, 165, 233, 0.3),
+                inset 0 0 10px rgba(255, 255, 255, 0.3);
+            animation: coreGlow 2s ease-in-out infinite, morphCore 4s ease-in-out infinite;
+        }
+        
+        /* Enhanced text with multiple effects */
+        .page-loading .text {
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            margin-top: 1.5rem;
+            font-size: 1.1rem;
+            position: relative;
+            background: linear-gradient(90deg, #0ea5e9, #0ea5e9, #4f46e5, #0ea5e9, #0ea5e9);
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: textShimmer 3s linear infinite;
+            text-shadow: 0 0 30px rgba(14, 165, 233, 0.3);
+        }
+        
+        .page-loading .text::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, transparent, rgba(14, 165, 233, 0.1), transparent);
+            border-radius: 4px;
+            z-index: -1;
+            animation: textGlow 2s ease-in-out infinite alternate;
+        }
+        
+        /* Subtitle with fade effect */
+        .page-loading .subtitle {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 500;
+            margin-top: 0.5rem;
+            letter-spacing: 0.05em;
+            animation: subtitleFade 2s ease-in-out infinite;
+        }
+        
+        /* Progress indicator */
+        .loading-progress {
+            width: 200px;
+            height: 2px;
+            background: #f1f5f9;
+            border-radius: 1px;
+            margin-top: 1.5rem;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .loading-progress::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, #0ea5e9, transparent);
+            animation: progressSlide 2s ease-in-out infinite;
+        }
+        
+        /* Keyframe animations */
+        @keyframes  floatParticle {
+            0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.6; }
+            50% { transform: translateY(-20px) rotate(180deg); opacity: 1; }
+        }
+        
+        @keyframes  rotateOrbit {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes  spinInner {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+        
+        @keyframes  coreGlow {
+            0% { 
+                transform: translate(-50%, -50%) scale(0.8); 
+                box-shadow: 
+                    0 0 20px rgba(14, 165, 233, 0.6),
+                    0 0 40px rgba(14, 165, 233, 0.3),
+                    inset 0 0 10px rgba(255, 255, 255, 0.3);
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1.2); 
+                box-shadow: 
+                    0 0 30px rgba(14, 165, 233, 0.8),
+                    0 0 60px rgba(14, 165, 233, 0.4),
+                    inset 0 0 15px rgba(255, 255, 255, 0.5);
+            }
+        }
+        
+        @keyframes  morphCore {
+            0%, 100% { border-radius: 50%; background-position: 0% 50%; }
+            25% { border-radius: 40%; background-position: 100% 50%; }
+            50% { border-radius: 30%; background-position: 0% 50%; }
+            75% { border-radius: 40%; background-position: 100% 50%; }
+        }
+        
+        @keyframes  textShimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes  textGlow {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.7; }
+        }
+        
+        @keyframes  subtitleFade {
+            0%, 100% { opacity: 0.5; transform: translateY(0px); }
+            50% { opacity: 1; transform: translateY(-2px); }
+        }
+        
+        @keyframes  progressSlide {
+            0% { left: -100%; }
+            50% { left: 0%; }
+            100% { left: 100%; }
+        }
+    </style>
+</head>
+
+<body class="font-sans bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex min-h-screen">
+    <!-- Ultra Modern Page Loader -->
+    <div class="page-loading active">
+        <div class="page-loading-inner">
+            <div class="loading-container">
+                <!-- Floating particles background -->
+                <div class="loading-particles">
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                </div>
+                
+                <!-- Main loading animation -->
+                <div class="loading-animation">
+                    <!-- Outer orbital rings -->
+                    <div class="orbit-ring"></div>
+                    <div class="orbit-ring"></div>
+                    <div class="orbit-ring"></div>
+                    
+                    <!-- Inner spinning circles -->
+                    <div class="inner-circle"></div>
+                    <div class="inner-circle"></div>
+                    
+                    <!-- Morphing glowing core -->
+                    <div class="core"></div>
+                </div>
+                
+                <!-- Enhanced text with effects -->
+                <div class="text">Silverhawk</div>
+                <div class="subtitle">Secure Banking Platform</div>
+                
+                <!-- Progress indicator -->
+                <div class="loading-progress"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Dark Mode Toggle - Floating button -->
+    <div class="fixed top-4 right-4 z-50">
+        <button @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)" 
+                class="dark-mode-toggle p-3 rounded-2xl bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 shadow-lg hover:shadow-xl border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-xl transition-all duration-300 hover:scale-110"
+                :title="darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
+            <i class="fa-solid fa-sun h-5 w-5" x-show="darkMode"></i>
+            <i class="fa-solid fa-moon h-5 w-5" x-show="!darkMode"></i>
+        </button>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="w-full">
+        
+<div class="flex flex-col lg:flex-row min-h-screen">
+    <!-- Left Side - Branding & Illustration (Desktop Only) -->
+    <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 dark:from-primary-700 dark:via-primary-800 dark:to-primary-900 relative overflow-hidden">
+        <!-- Animated Background Elements -->
+        <div class="absolute inset-0 overflow-hidden">
+            <!-- Floating Shapes -->
+            <div class="absolute top-1/4 left-1/4 w-48 h-48 bg-white/10 rounded-full backdrop-blur-sm floating-slow"></div>
+            <div class="absolute bottom-1/3 right-1/4 w-72 h-72 bg-white/5 rounded-full backdrop-blur-sm floating"></div>
+            <div class="absolute top-2/3 left-1/3 w-32 h-32 bg-white/15 rounded-full backdrop-blur-sm floating-slower"></div>
+            
+            <!-- Grid Pattern -->
+            <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(rgba(255,255,255,0.15) 1px, transparent 1px); background-size: 25px 25px;"></div>
+            
+            <!-- Gradient Overlay -->
+            <div class="absolute inset-0 bg-gradient-to-t from-primary-900/20 via-transparent to-primary-600/20"></div>
+        </div>
+        
+        <!-- Content -->
+        <div class="relative flex flex-col justify-center items-center w-full h-full text-white p-8 z-10">
+            <!-- Logo with Glow Effect -->
+            <div class="mb-6 relative">
+                <div class="absolute inset-0 bg-white/20 rounded-2xl blur-lg"></div>
+                <div class="relative bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+                    <img src="storage/app/public/photos/silverhawk_bank_logo.svg" alt="Logo" class="h-12">
+                </div>
+            </div>
+            
+            <!-- Title with Enhanced Typography -->
+            <h1 class="text-3xl font-black mb-3 text-center bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent">
+                Welcome Back
+            </h1>
+            <h2 class="text-lg font-semibold mb-6 text-center text-white/90">
+                Silverhawk
+            </h2>
+            
+            <!-- Description -->
+            <p class="text-sm mb-8 max-w-md text-center text-white/80 leading-relaxed">
+                Swift and secure money transfers worldwide. Experience banking reimagined.
+            </p>
+            
+            <!-- Enhanced Features Grid -->
+            <div class="grid grid-cols-2 gap-4 w-full max-w-md">
+                <div class="group flex items-center space-x-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-300">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fas fa-shield-alt text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold">Bank-Grade Security</h3>
+                        <p class="text-xs text-white/70">256-bit encryption</p>
+                    </div>
+                </div>
+                <div class="group flex items-center space-x-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-300">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fas fa-bolt text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold">Instant Transfers</h3>
+                        <p class="text-xs text-white/70">Real-time processing</p>
+                    </div>
+                </div>
+                <div class="group flex items-center space-x-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-300">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fas fa-globe text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold">Global Reach</h3>
+                        <p class="text-xs text-white/70">200+ countries</p>
+                    </div>
+                </div>
+                <div class="group flex items-center space-x-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/15 transition-all duration-300">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fas fa-mobile-alt text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold">Mobile First</h3>
+                        <p class="text-xs text-white/70">iOS & Android</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side - Login Form -->
+    <div class="w-full lg:w-1/2 flex flex-col justify-center items-center p-3 lg:p-8 bg-gray-50/50 dark:bg-gray-900/50 backdrop-blur-sm">
+        <div class="w-full max-w-sm">
+            <!-- Mobile Header -->
+            <div class="lg:hidden text-center mb-6">
+                <div class="relative inline-block mb-3 mt-10">
+                    <div class="absolute inset-0 bg-primary-500/20 rounded-2xl blur-lg"></div>
+                    <div class="relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-3 border border-gray-200/50 dark:border-gray-700/50">
+                        <img src="storage/app/public/photos/silverhawk_bank_logo.svg" alt="Logo" class="h-10 mx-auto">
+                    </div>
+                </div>
+                <h1 class="text-xl font-bold text-gray-900 dark:text-white mb-1">Welcome Back</h1>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Sign in to Silverhawk</p>
+            </div>
+            
+            <!-- Enhanced Alerts -->
+                        
+                        
+            <!-- Enhanced Login Card -->
+            <div class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
+                <!-- Card Header -->
+                <div class="px-6 pt-6 pb-4 border-b border-gray-100/50 dark:border-gray-700/50">
+                    <div class="hidden lg:block">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">Sign In</h2>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Access your Silverhawk account</p>
+                    </div>
+                    <div class="lg:hidden">
+                        <h2 class="text-lg font-bold text-gray-900 dark:text-white text-center">Enter Your Credentials</h2>
+                    </div>
+                </div>
+                
+                <!-- Login Form -->
+                <div class="px-6 pb-6 pt-4">
+                    <form id="login-form" method="POST" action="javascript:void(0)" class="space-y-4">
+                        <input type="hidden" name="_token" value="ns5jyVjzCsrQzTl2woLDTk6Odj7ihnKrTsrOKpZA">                        
+                        <!-- Email Field -->
+                        <div class="space-y-1">
+                            <label for="email" class="block text-xs font-semibold text-gray-700 dark:text-gray-300">Email Address or Username </label>
+                            <div class="input-wrapper group">
+                                <div class="relative">
+                                    <div class="input-icon group-focus-within:text-primary-500 transition-colors z-10">
+                                        <i class="fas fa-envelope text-sm"></i>
+                                    </div>
+                                    <input 
+                                        id="email"
+                                        type="text" 
+                                        name="email" 
+                                        class="w-full pl-10 pr-3 py-3 border border-gray-300/50 dark:border-gray-600/50 rounded-xl bg-gray-50/50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 backdrop-blur-sm transition-all duration-300 text-sm" 
+                                        placeholder="Enter your email address"
+                                        required 
+                                        autocomplete="email"
+                                        value="">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Password Field -->
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between">
+                                <label for="password" class="block text-xs font-semibold text-gray-700 dark:text-gray-300">Password</label>
+                                <a href="forgot-password.html" class="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-500 dark:hover:text-primary-300 transition-colors">
+                                    Forgot Password?
+                                </a>
+                            </div>
+                            <div class="input-wrapper group">
+                                <div class="relative">
+                                    <div class="input-icon group-focus-within:text-primary-500 transition-colors z-10">
+                                        <i class="fas fa-lock text-sm"></i>
+                                    </div>
+                                    <input 
+                                        id="password"
+                                        type="password" 
+                                        name="password"
+                                        class="w-full pl-10 pr-12 py-3 border border-gray-300/50 dark:border-gray-600/50 rounded-xl bg-gray-50/50 dark:bg-gray-700/50 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 backdrop-blur-sm transition-all duration-300 text-sm" 
+                                        placeholder="Enter your password"
+                                        required
+                                        autocomplete="current-password">
+                                    <button 
+                                        type="button"
+                                        onclick="togglePasswordVisibility()"
+                                        class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 dark:text-gray-500 hover:text-primary-500 transition-colors">
+                                        <i class="fas fa-eye text-sm" id="show-password"></i>
+                                        <i class="fas fa-eye-slash hidden text-sm" id="hide-password"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Remember Me -->
+                        <div class="flex items-center justify-between pt-1">
+                            <label class="inline-flex items-center group cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    name="remember_me"
+                                    class="rounded border-gray-300/50 dark:border-gray-600/50 text-primary-600 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200/50 focus:ring-opacity-50 dark:bg-gray-700/50 transition-all" 
+                                    checked>
+                                <span class="ml-2 text-xs font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200 transition-colors">
+                                    Keep me signed in
+                                </span>
+                            </label>
+                        </div>
+                        
+                        <!-- Submit Button -->
+                        <div class="pt-2">
+                            <button 
+                                type="submit"
+                                class="w-full py-3 px-4 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 dark:from-primary-700 dark:to-primary-800 dark:hover:from-primary-600 dark:hover:to-primary-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 flex items-center justify-center group text-sm">
+                                <i class="fas fa-sign-in-alt mr-2 group-hover:translate-x-1 transition-transform text-sm"></i>
+                                <span>Sign In to Account</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Divider -->
+                        <div class="relative py-3">
+                            <div class="absolute inset-0 flex items-center">
+                                <div class="w-full border-t border-gray-200/50 dark:border-gray-700/50"></div>
+                            </div>
+                            <div class="relative flex justify-center text-xs">
+                                <span class="px-3 bg-white/90 dark:bg-gray-800/90 text-gray-500 dark:text-gray-400 font-medium">
+                                    New to Silverhawk?
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Create Account Button -->
+                        <div>
+                            <a 
+                                href="register.html"
+                                class="w-full py-3 px-4 bg-gray-100/80 dark:bg-gray-700/80 hover:bg-gray-200/80 dark:hover:bg-gray-600/80 text-gray-800 dark:text-gray-200 font-semibold rounded-xl border border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm transition-all duration-300 flex items-center justify-center group hover:scale-[1.02] text-sm">
+                                <i class="fas fa-user-plus mr-2 group-hover:scale-110 transition-transform text-sm"></i>
+                                <span>Create New Account</span>
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Enhanced Footer Links -->
+            <div class="mt-6 text-center space-y-3">
+                <div class="flex items-center justify-center space-x-4 text-xs">
+                    <a href="login.html#" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors font-medium flex items-center">
+                        <i class="fas fa-shield-alt mr-1 text-xs"></i>
+                        Security
+                    </a>
+                    <a href="login.html#" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors font-medium flex items-center">
+                        <i class="fas fa-headset mr-1 text-xs"></i>
+                        Support
+                    </a>
+                    <a href="login.html#" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors font-medium flex items-center">
+                        <i class="fas fa-file-contract mr-1 text-xs"></i>
+                        Terms
+                    </a>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-500 max-w-xs mx-auto leading-relaxed">
+                    By signing in, you agree to our Terms of Service and Privacy Policy. 
+                    Your data is protected with bank-grade security.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+    </div>
+    
+    <!-- Enhanced Page Loading Animation -->
+    <script>
+        window.onload = function() {
+            const preloader = document.querySelector('.page-loading');
+            
+            // Add a slight delay to make loading animation more noticeable
+            setTimeout(function() {
+                preloader.classList.remove('active');
+                setTimeout(function() {
+                    preloader.remove();
+                }, 500);
+            }, 800);
+        };
+    </script>
+    
+    <!-- Additional Scripts -->
+    <script>
+    function togglePasswordVisibility() {
+        const passwordInput = document.getElementById('password');
+        const showPasswordIcon = document.getElementById('show-password');
+        const hidePasswordIcon = document.getElementById('hide-password');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            showPasswordIcon.classList.add('hidden');
+            hidePasswordIcon.classList.remove('hidden');
+        } else {
+            passwordInput.type = 'password';
+            showPasswordIcon.classList.remove('hidden');
+            hidePasswordIcon.classList.add('hidden');
+        }
+    }
+
+    // Enhanced form interactions
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add floating label effect
+        const inputs = document.querySelectorAll('input[type="email"], input[type="password"]');
+        inputs.forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.parentElement.classList.add('focused');
+            });
+            
+            input.addEventListener('blur', function() {
+                if (!this.value) {
+                    this.parentElement.parentElement.classList.remove('focused');
+                }
+            });
+        });
+
+        // Add ripple effect to buttons
+        const buttons = document.querySelectorAll('button, a');
+        buttons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                const ripple = document.createElement('span');
+                const rect = this.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const x = e.clientX - rect.left - size / 2;
+                const y = e.clientY - rect.top - size / 2;
+                
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = x + 'px';
+                ripple.style.top = y + 'px';
+                ripple.classList.add('ripple');
+                
+                this.appendChild(ripple);
+                
+                setTimeout(() => {
+                    ripple.remove();
+                }, 600);
+            });
+        });
+    });
+</script>
+
+<style>
+    .ripple {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        transform: scale(0);
+        animation: ripple-animation 0.6s linear;
+        pointer-events: none;
+    }
+    
+    @keyframes  ripple-animation {
+        to {
+            transform: scale(4);
+            opacity: 0;
+        }
+    }
+    
+    .input-wrapper.focused {
+        transform: translateY(-1px);
+    }
+    
+    .input-wrapper.focused .input-icon {
+        color: theme('colors.primary.500');
+    }
+</style>
+<script src="/temp/js/silverhawk-api.js?v=6"></script>
+</body>
+</html>

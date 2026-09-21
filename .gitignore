@@ -1,0 +1,109 @@
+# =============================================================================
+# Dependencies & Package Managers
+# =============================================================================
+node_modules/
+*/node_modules/
+.pnp
+.pnp.js
+
+# =============================================================================
+# Environment Secrets & Configuration
+# =============================================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+backend/.env.local
+backend/.env.development.local
+backend/.env.production.local
+*.env
+!*.env.example
+
+# =============================================================================
+# Build & Distribution Artifacts
+# =============================================================================
+dist/
+build/
+out/
+backend/dist/
+*.tsbuildinfo
+.next/
+.nuxt/
+.vuepress/dist
+.serverless/
+
+# =============================================================================
+# Database & Uploads
+# =============================================================================
+backend/uploads/
+uploads/
+storage/uploads/
+*.sqlite
+*.sqlite3
+*.db
+docker-data/
+
+# =============================================================================
+# PM2 Process Manager
+# =============================================================================
+backend/logs/
+.pm2/
+
+# =============================================================================
+# Logs & Process PID Files
+# =============================================================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# =============================================================================
+# Testing & Coverage
+# =============================================================================
+coverage/
+.nyc_output/
+*.lcov
+.clinic/
+
+# =============================================================================
+# OS & Editor Specific Files
+# =============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor Settings
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+
+# =============================================================================
+# Misc Cache & Temporary Files
+# =============================================================================
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.prettiercache
+.temp/
+

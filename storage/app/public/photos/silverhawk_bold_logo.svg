@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 200" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Platinum-Silver Metallic Gradient -->
+    <linearGradient id="shSilver" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="25%" stop-color="#f1f5f9"/>
+      <stop offset="50%" stop-color="#cbd5e1"/>
+      <stop offset="75%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+
+    <!-- Deep Regal Royal/Sapphire Blue Gradient -->
+    <linearGradient id="shSapphire" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="35%" stop-color="#0284c7"/>
+      <stop offset="70%" stop-color="#0369a1"/>
+      <stop offset="100%" stop-color="#075985"/>
+    </linearGradient>
+
+    <!-- Electric Cyan Highlight -->
+    <linearGradient id="shCyan" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#7dd3fc"/>
+    </linearGradient>
+
+    <!-- Dark Polished Chrome Shadow -->
+    <linearGradient id="shChrome" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#475569"/>
+      <stop offset="50%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#f8fafc"/>
+    </linearGradient>
+
+    <!-- Luxury Ambient Glow Filter -->
+    <filter id="hawkGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0284c7" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- ================= EMBLEM: BOLD GEOMETRIC PREDATORY HAWK ================= -->
+  <g transform="translate(25, 20) scale(1.05)" filter="url(#hawkGlow)">
+    <!-- Central Shield Facet Background -->
+    <polygon points="75,20 130,65 105,130 75,155 45,130 20,65" fill="url(#shSapphire)" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round"/>
+
+    <!-- Left Outer Wing Blades (Silver-Chrome Bevels) -->
+    <polygon points="75,50 15,22 0,38 48,76" fill="url(#shSilver)"/>
+    <polygon points="48,76 8,62 2,78 54,102" fill="url(#shChrome)"/>
+    <polygon points="54,102 12,100 10,116 62,125" fill="url(#shSilver)"/>
+
+    <!-- Right Outer Wing Blades (Silver-Chrome Bevels) -->
+    <polygon points="75,50 135,22 150,38 102,76" fill="url(#shSilver)"/>
+    <polygon points="102,76 142,62 148,78 96,102" fill="url(#shChrome)"/>
+    <polygon points="96,102 138,100 140,116 88,125" fill="url(#shSilver)"/>
+
+    <!-- Inner Wings: Electric Sapphire Layer -->
+    <polygon points="75,50 32,52 52,82 75,70" fill="url(#shSapphire)"/>
+    <polygon points="75,50 118,52 98,82 75,70" fill="url(#shSapphire)"/>
+    <polygon points="75,70 42,84 62,108 75,92" fill="url(#shCyan)"/>
+    <polygon points="75,70 108,84 88,108 75,92" fill="url(#shCyan)"/>
+
+    <!-- Hawk Diamond Head (Polished Platinum) -->
+    <polygon points="75,12 56,38 75,62 94,38" fill="url(#shSilver)" stroke="#ffffff" stroke-width="1.2"/>
+    <polygon points="68,30 82,30 75,48" fill="#ffffff"/>
+    <polygon points="72,40 78,40 75,48" fill="url(#shSapphire)"/>
+
+    <!-- Diamond Tail (Multi-Tier Plumes) -->
+    <polygon points="75,122 60,154 75,170 90,154" fill="url(#shSilver)"/>
+    <polygon points="75,128 68,158 75,168 82,158" fill="url(#shSapphire)"/>
+  </g>
+
+  <!-- ================= WORDMARK: BOLD, LARGE, COMMANDING ================= -->
+  <g transform="translate(240, 0)">
+    <!-- SILVERHAWK (Extra Bold, Large Scale) -->
+    <text x="0" y="102" 
+          font-family="system-ui, -apple-system, 'Montserrat', 'Plus Jakarta Sans', 'Inter', sans-serif" 
+          font-weight="900" 
+          font-size="82" 
+          letter-spacing="5" 
+          fill="url(#shSilver)" 
+          stroke="#0f172a" 
+          stroke-width="1.5">
+      SILVERHAWK
+    </text>
+
+    <!-- BANK (Cyan Glowing Accent) -->
+    <text x="595" y="102" 
+          font-family="system-ui, -apple-system, 'Montserrat', 'Plus Jakarta Sans', 'Inter', sans-serif" 
+          font-weight="900" 
+          font-size="82" 
+          letter-spacing="5" 
+          fill="url(#shCyan)">
+      BANK
+    </text>
+
+    <!-- Subtitle: INSTITUTIONAL TRUST & PRIVATE WEALTH -->
+    <text x="4" y="148" 
+          font-family="system-ui, -apple-system, 'Plus Jakarta Sans', 'Inter', sans-serif" 
+          font-weight="800" 
+          font-size="18" 
+          letter-spacing="11" 
+          fill="#94a3b8">
+      PRIVATE WEALTH • GLOBAL ASSETS
+    </text>
+  </g>
+</svg>
+

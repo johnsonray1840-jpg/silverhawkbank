@@ -1,0 +1,114 @@
+# ==============================================================================
+# Silverhawk Digital Banking Platform — Apache Reverse Proxy Configuration
+# Place in the document root (public_html/) of your shared hosting
+# ==============================================================================
+
+RewriteEngine On
+
+# --------------------------------------------------------------------------
+# 1. Force HTTPS (uncomment in production when SSL is enabled)
+# --------------------------------------------------------------------------
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# --------------------------------------------------------------------------
+# 2. Security Headers
+# --------------------------------------------------------------------------
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "DENY"
+  Header set X-XSS-Protection "1; mode=block"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(self)"
+</IfModule>
+
+# --------------------------------------------------------------------------
+# 3. Proxy API requests to Node.js backend (port 3000)
+# --------------------------------------------------------------------------
+<IfModule mod_proxy.c>
+  ProxyPreserveHost On
+
+  # API endpoints
+  RewriteRule ^api/(.*)$ http://127.0.0.1:3000/api/$1 [P,L]
+
+  # WebSocket (realtime namespace)
+  RewriteCond %{HTTP:Upgrade} websocket [NC]
+  RewriteCond %{HTTP:Connection} upgrade [NC]
+  RewriteRule ^realtime(.*)$ ws://127.0.0.1:3000/realtime$1 [P,L]
+
+  # Swagger docs
+  RewriteRule ^api/docs(.*)$ http://127.0.0.1:3000/api/docs$1 [P,L]
+</IfModule>
+
+# --------------------------------------------------------------------------
+# 4. Serve static files directly (bypass Node.js for performance)
+# --------------------------------------------------------------------------
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# --------------------------------------------------------------------------
+# 5. Clean URL rewrites (extensionless HTML routes)
+# --------------------------------------------------------------------------
+RewriteRule ^admin$ /admin.html [L]
+RewriteRule ^dashboard$ /dashboard.html [L]
+RewriteRule ^login$ /login.html [L]
+RewriteRule ^register$ /register.html [L]
+RewriteRule ^verify$ /verify.html [L]
+RewriteRule ^forgot-password$ /forgot-password.html [L]
+RewriteRule ^about$ /about.html [L]
+RewriteRule ^contact$ /contact.html [L]
+RewriteRule ^privacy$ /privacy.html [L]
+RewriteRule ^terms$ /terms-of-service.html [L]
+RewriteRule ^terms-of-service$ /terms-of-service.html [L]
+RewriteRule ^grants$ /grants.html [L]
+RewriteRule ^send-money$ /send-money.html [L]
+RewriteRule ^alerts$ /alerts.html [L]
+RewriteRule ^business$ /business.html [L]
+RewriteRule ^apps$ /apps.html [L]
+RewriteRule ^chart$ /chart.html [L]
+
+# --------------------------------------------------------------------------
+# 6. Default to index.html for SPA fallback
+# --------------------------------------------------------------------------
+RewriteRule ^$ /index.html [L]
+
+# --------------------------------------------------------------------------
+# 7. Compression (reduce bandwidth on shared hosting)
+# --------------------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# --------------------------------------------------------------------------
+# 8. Cache static assets (reduce server load)
+# --------------------------------------------------------------------------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType font/woff "access plus 1 year"
+  ExpiresByType application/font-woff "access plus 1 year"
+</IfModule>
+
+# --------------------------------------------------------------------------
+# 9. Deny access to sensitive files
+# --------------------------------------------------------------------------
+<FilesMatch "\.(env|env\.example|gitignore|md|prisma|ts|tsx|lock|log)$">
+  Order deny,allow
+  Deny from all
+</FilesMatch>
+
+<FilesMatch "^(package|tsconfig|docker-compose|ecosystem\.config)">
+  Order deny,allow
+  Deny from all
+</FilesMatch>
+

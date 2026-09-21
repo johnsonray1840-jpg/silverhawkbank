@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: silverhawk_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-silverhawk_db}
+      MYSQL_USER: ${MYSQL_USER:-silverhawk_admin}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-silverhawkpass}
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=caching_sha2_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: silverhawk_api
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: mysql://${MYSQL_USER:-silverhawk_admin}:${MYSQL_PASSWORD:-silverhawkpass}@mysql:3306/${MYSQL_DATABASE:-silverhawk_db}
+      JWT_SECRET: super-secret-jwt-key-change-in-production-silverhawk-banking-2026
+      JWT_REFRESH_SECRET: super-secret-refresh-jwt-key-change-in-production-silverhawk-banking-2026
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    ports:
+      - '3000:3000'
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
