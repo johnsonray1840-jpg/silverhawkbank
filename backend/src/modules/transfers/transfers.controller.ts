@@ -17,6 +17,7 @@ import { StandingOrdersService } from './standing-orders.service';
 import { CashlinksService } from './cashlinks.service';
 import { InternalTransferDto } from './dto/internal-transfer.dto';
 import { ExternalTransferDto } from './dto/external-transfer.dto';
+import { InternationalTransferDto } from './dto/international-transfer.dto';
 import { RequestTransferOtpDto } from './dto/request-otp.dto';
 import { CreateStandingOrderDto } from './dto/standing-orders.dto';
 import { ClaimCashlinkDto, CreateCashlinkDto } from './dto/cashlinks.dto';
@@ -95,6 +96,20 @@ export class TransfersController {
     @Headers('idempotency-key') headerIdempotencyKey?: string,
   ) {
     return this.transfersService.transferExternal(userId, dto, headerIdempotencyKey);
+  }
+
+  @Post('international')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Initiate international wire transfer (SWIFT/SEPA) - immediate execution with OTP' })
+  @ApiHeader({ name: 'Idempotency-Key', required: false })
+  @ApiResponse({ status: 200, description: 'International wire transfer completed successfully' })
+  async transferInternational(
+    @CurrentUser('id') userId: string,
+    @Body() dto: InternationalTransferDto,
+    @Headers('idempotency-key') headerIdempotencyKey?: string,
+  ) {
+    return this.transfersService.transferInternational(userId, dto, headerIdempotencyKey);
   }
 
   // --- Phase 22: Standing Orders Endpoints ---

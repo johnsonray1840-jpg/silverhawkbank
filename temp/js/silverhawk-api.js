@@ -413,6 +413,13 @@
       });
     }
 
+    async transferInternational(data) {
+      return this.request('/transfers/international', {
+        method: 'POST',
+        body: data,
+      });
+    }
+
     // ----------------------------------------------------
     // Currency Swap & Spot FX Desk (Swap from Registered Currency to BTC)
     // ----------------------------------------------------

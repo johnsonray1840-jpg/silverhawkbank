@@ -196,6 +196,20 @@ export class PlatformSettingsUtil {
       isSensitive: false,
       description: 'Percentage fee charged on outbound external bank wires',
     },
+    transfer_fee_international_flat: {
+      key: 'transfer_fee_international_flat',
+      category: SettingCategory.FEES,
+      defaultValue: '25.0000',
+      isSensitive: false,
+      description: 'Flat fee charged on international SWIFT wire transfers',
+    },
+    transfer_fee_international_pct: {
+      key: 'transfer_fee_international_pct',
+      category: SettingCategory.FEES,
+      defaultValue: '1.50',
+      isSensitive: false,
+      description: 'Percentage fee charged on international SWIFT wire transfers',
+    },
     withdrawal_fee_pct: {
       key: 'withdrawal_fee_pct',
       category: SettingCategory.FEES,
