@@ -554,9 +554,10 @@
                                     <td class="px-6 py-4">
                                         <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase" :class="tx.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : tx.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'" x-text="tx.status"></span>
                                     </td>
-                                    <td class="px-6 py-4 text-right space-x-1.5">
-                                        <button type="button" @click="reverseTx(tx.id)" x-show="tx.status === 'SUCCESS'" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[10px] font-bold border border-slate-700">Reverse</button>
-                                        <button type="button" @click="approveTx(tx.id)" x-show="tx.status === 'PENDING'" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold">Approve</button>
+                                    <td class="px-6 py-4 text-right space-x-1">
+                                        <button type="button" @click="approveTx(tx.id)" x-show="tx.status !== 'SUCCESS'" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold">Approve</button>
+                                        <button type="button" @click="pendTx(tx.id)" x-show="tx.status !== 'PENDING'" class="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold">Pend</button>
+                                        <button type="button" @click="rejectTx(tx.id)" x-show="tx.status !== 'FAILED' && tx.status !== 'CANCELLED'" class="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[10px] font-bold">Reject</button>
                                     </td>
                                 </tr>
                             </template>
@@ -764,14 +765,58 @@
         <!-- TAB 4: TRANSACTIONS & MANUAL CUSTOM INJECTIONS -->
         <!-- =================================================================== -->
         <div x-show="activeTab === 'transactions'" class="space-y-6">
-            <div class="bg-slate-950/80 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="bg-slate-950/80 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h2 class="text-xl font-black text-white">Institutional Transactions Ledger</h2>
-                    <p class="text-xs text-slate-400">Complete audit explorer with manual injection, approval, rejection, and reversal controls.</p>
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                            <i class="fas fa-layer-group mr-1.5 text-[9px]"></i>Core Ledger
+                        </span>
+                        <h2 class="text-xl font-black text-white">Institutional Transactions Ledger</h2>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">Real-time audit explorer with full CRUD, manual injections, compliance status triage, and ledger journal balance controls.</p>
                 </div>
-                <button type="button" @click="openInjectTransactionModal()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-lg shadow-sky-600/20 transition-all flex items-center space-x-2">
-                    <i class="fas fa-file-invoice-dollar"></i><span>Inject Custom Transaction</span>
-                </button>
+                <div class="flex items-center flex-wrap gap-2.5">
+                    <button type="button" @click="exportTransactionsReport('CSV')" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center space-x-1.5">
+                        <i class="fas fa-file-csv text-emerald-400"></i><span>Export CSV</span>
+                    </button>
+                    <button type="button" @click="openInjectTransactionModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-lg shadow-sky-600/20 transition-all flex items-center space-x-2">
+                        <i class="fas fa-plus-circle"></i><span>Inject Transaction</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filter Toolbar -->
+            <div class="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 shadow-lg flex flex-col md:flex-row items-center gap-3">
+                <div class="relative w-full md:w-80">
+                    <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                    <input type="text" x-model="txFilterSearch" @input.debounce.300ms="loadTransactions()" placeholder="Search reference, customer, memo, account..." class="w-full pl-9 pr-3.5 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-white text-xs placeholder-slate-500 focus:border-sky-500 focus:outline-none">
+                </div>
+                <div class="flex items-center gap-2.5 w-full md:w-auto">
+                    <select x-model="txFilterStatus" @change="loadTransactions()" class="px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-white text-xs focus:border-sky-500 focus:outline-none">
+                        <option value="">All Statuses</option>
+                        <option value="SUCCESS">SUCCESS / COMPLETED</option>
+                        <option value="PENDING">PENDING</option>
+                        <option value="PROCESSING">PROCESSING</option>
+                        <option value="REQUIRES_REVIEW">UNDER REVIEW</option>
+                        <option value="FAILED">FAILED / REJECTED</option>
+                        <option value="CANCELLED">CANCELLED</option>
+                        <option value="REVERSED">REVERSED</option>
+                    </select>
+                    <select x-model="txFilterType" @change="loadTransactions()" class="px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-white text-xs focus:border-sky-500 focus:outline-none">
+                        <option value="">All Types &amp; Rails</option>
+                        <option value="TRANSFER_EXTERNAL">Domestic Wire / ACH / Fedwire</option>
+                        <option value="TRANSFER_INTERNATIONAL">International SWIFT Wire</option>
+                        <option value="TRANSFER_INTERNAL">Internal Book Transfer</option>
+                        <option value="DEPOSIT">Inbound Deposit</option>
+                        <option value="WITHDRAWAL">Outbound Withdrawal</option>
+                        <option value="ADJUSTMENT_CREDIT">Ledger Credit Adj.</option>
+                        <option value="ADJUSTMENT_DEBIT">Ledger Debit Adj.</option>
+                        <option value="REVERSAL">Reversal</option>
+                    </select>
+                    <button type="button" @click="txFilterSearch = ''; txFilterStatus = ''; txFilterType = ''; loadTransactions();" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs border border-slate-800 transition-colors" title="Reset Filters">
+                        <i class="fas fa-rotate-left"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="bg-slate-950/80 rounded-3xl border border-slate-800 shadow-xl overflow-hidden">
@@ -779,42 +824,101 @@
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-900/80 text-slate-400 uppercase font-black tracking-wider text-[10px]">
                             <tr>
-                                <th class="px-6 py-4">Reference / Time</th>
-                                <th class="px-6 py-4">Account / Customer</th>
-                                <th class="px-6 py-4">Type &amp; Memo</th>
-                                <th class="px-6 py-4">Amount</th>
+                                <th class="px-6 py-4">Reference &amp; Date</th>
+                                <th class="px-6 py-4">Customer &amp; Counterparty</th>
+                                <th class="px-6 py-4">Type &amp; Description</th>
+                                <th class="px-6 py-4">Amount &amp; Fee</th>
                                 <th class="px-6 py-4">Status</th>
-                                <th class="px-6 py-4 text-right">Action Controls</th>
+                                <th class="px-6 py-4 text-right">Actions &amp; CRUD</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-800/80 font-medium">
                             <template x-for="tx in transactionsList" :key="tx.id">
-                                <tr class="hover:bg-slate-900/50 transition-colors">
+                                <tr class="hover:bg-slate-900/50 transition-colors group">
                                     <td class="px-6 py-4">
-                                        <div class="font-mono font-bold text-white" x-text="tx.reference"></div>
-                                        <div class="text-[10px] text-slate-400" x-text="new Date(tx.createdAt).toLocaleString()"></div>
-                                    </td>
-                                    <td class="px-6 py-4">
-                                        <div class="font-bold text-white" x-text="tx.user ? (tx.user.profile?.firstName + ' ' + tx.user.profile?.lastName) : 'Unknown'"></div>
-                                        <div class="text-[10px] text-slate-400 font-mono" x-text="'#' + (tx.account?.accountNumber || 'N/A')"></div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="font-mono font-black text-white text-xs group-hover:text-sky-400 transition-colors" x-text="tx.reference"></span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-500 font-mono mt-0.5" x-text="new Date(tx.createdAt).toLocaleString()"></div>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-800 text-slate-300 border border-slate-700" x-text="tx.type"></span>
-                                        <div class="text-[11px] text-slate-300 mt-1" x-text="tx.description"></div>
-                                    </td>
-                                    <td class="px-6 py-4 font-mono font-black text-sm" :class="tx.type.includes('CREDIT') || tx.type.includes('DEPOSIT') ? 'text-emerald-400' : 'text-slate-200'">
-                                        <span x-text="tx.currencyCode + ' ' + parseFloat(tx.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })"></span>
+                                        <div class="font-bold text-white" x-text="tx.user ? (tx.user.profile?.firstName ? (tx.user.profile.firstName + ' ' + tx.user.profile.lastName) : tx.user.username) : 'Direct Ledger'"></div>
+                                        <div class="text-[10px] text-slate-400 font-mono flex items-center space-x-1.5 mt-0.5">
+                                            <span x-text="'#' + (tx.sourceAccount?.accountNumber || tx.destinationAccount?.accountNumber || 'SYSTEM')"></span>
+                                            <template x-if="tx.metadata?.counterpartyName">
+                                                <span class="text-slate-500 truncate max-w-[140px]" x-text="'⇄ ' + tx.metadata.counterpartyName"></span>
+                                            </template>
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase" :class="tx.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : tx.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'" x-text="tx.status"></span>
+                                        <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border"
+                                            :class="tx.type.includes('INTERNATIONAL') ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' : tx.type.includes('DOMESTIC') ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' : tx.type.includes('DEPOSIT') || tx.type.includes('CREDIT') ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-300 border-slate-700'"
+                                            x-text="tx.type.replace('TRANSFER_', '').replace('ADJUSTMENT_', 'ADJ ')"></span>
+                                        <div class="text-[11px] text-slate-300 mt-1 line-clamp-1 max-w-xs" x-text="tx.description"></div>
                                     </td>
-                                    <td class="px-6 py-4 text-right space-x-1.5">
-                                        <button type="button" @click="approveTx(tx.id)" x-show="tx.status === 'PENDING'" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold">Approve</button>
-                                        <button type="button" @click="rejectTx(tx.id)" x-show="tx.status === 'PENDING'" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[10px] font-bold">Reject</button>
-                                        <button type="button" @click="reverseTx(tx.id)" x-show="tx.status === 'SUCCESS'" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[10px] font-bold border border-slate-700">Reverse</button>
+                                    <td class="px-6 py-4 font-mono">
+                                        <div class="font-black text-sm" :class="tx.type.includes('CREDIT') || tx.type.includes('DEPOSIT') ? 'text-emerald-400' : 'text-slate-100'">
+                                            <span x-text="(tx.type.includes('CREDIT') || tx.type.includes('DEPOSIT') ? '+' : '-') + (tx.currencyCode || 'USD') + ' ' + parseFloat(tx.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })"></span>
+                                        </div>
+                                        <template x-if="tx.fee && parseFloat(tx.fee) > 0">
+                                            <div class="text-[10px] text-slate-500" x-text="'Fee: ' + (tx.currencyCode || 'USD') + ' ' + parseFloat(tx.fee).toFixed(2)"></div>
+                                        </template>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border"
+                                            :class="{
+                                                'bg-emerald-500/10 text-emerald-400 border-emerald-500/30': tx.status === 'SUCCESS',
+                                                'bg-amber-500/10 text-amber-400 border-amber-500/30': tx.status === 'PENDING',
+                                                'bg-sky-500/10 text-sky-400 border-sky-500/30': tx.status === 'PROCESSING' && (!tx.metadata?.reviewStatus || tx.metadata?.reviewStatus !== 'REQUIRES_REVIEW'),
+                                                'bg-purple-500/10 text-purple-400 border-purple-500/30': tx.status === 'REQUIRES_REVIEW' || (tx.status === 'PROCESSING' && tx.metadata?.reviewStatus === 'REQUIRES_REVIEW'),
+                                                'bg-rose-500/10 text-rose-400 border-rose-500/30': tx.status === 'FAILED' || tx.status === 'CANCELLED',
+                                                'bg-slate-800 text-slate-400 border-slate-700': tx.status === 'REVERSED'
+                                            }">
+                                            <span class="w-1.5 h-1.5 rounded-full mr-1.5"
+                                                :class="{
+                                                    'bg-emerald-400': tx.status === 'SUCCESS',
+                                                    'bg-amber-400 animate-pulse': tx.status === 'PENDING',
+                                                    'bg-sky-400 animate-pulse': tx.status === 'PROCESSING' && (!tx.metadata?.reviewStatus || tx.metadata?.reviewStatus !== 'REQUIRES_REVIEW'),
+                                                    'bg-purple-400 animate-pulse': tx.status === 'REQUIRES_REVIEW' || (tx.status === 'PROCESSING' && tx.metadata?.reviewStatus === 'REQUIRES_REVIEW'),
+                                                    'bg-rose-400': tx.status === 'FAILED' || tx.status === 'CANCELLED',
+                                                    'bg-slate-400': tx.status === 'REVERSED'
+                                                }"></span>
+                                            <span x-text="(tx.metadata?.reviewStatus === 'REQUIRES_REVIEW' || tx.status === 'REQUIRES_REVIEW') ? 'UNDER REVIEW' : tx.status"></span>
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <div class="flex items-center justify-end space-x-1.5">
+                                            <button type="button" @click="openTxDetailsModal(tx)" title="Inspect 360° &amp; Audit Trail" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-sky-400 hover:text-white rounded-lg text-xs transition-colors border border-slate-700">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button type="button" @click="openEditTransactionModal(tx)" title="Edit Transaction &amp; Notes" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-white rounded-lg text-xs transition-colors border border-slate-700">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <div class="inline-flex items-center space-x-1">
+                                                <button type="button" @click="approveTx(tx.id)" x-show="tx.status !== 'SUCCESS'" title="Approve & Complete Transaction" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold transition-all shadow-sm">
+                                                    <i class="fas fa-check mr-1"></i>Approve
+                                                </button>
+                                                <button type="button" @click="pendTx(tx.id)" x-show="tx.status !== 'PENDING'" title="Place on Pending Status" class="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold transition-all shadow-sm">
+                                                    <i class="fas fa-clock mr-1"></i>Pend
+                                                </button>
+                                                <button type="button" @click="rejectTx(tx.id)" x-show="tx.status !== 'FAILED' && tx.status !== 'CANCELLED'" title="Reject Transaction & Restore Funds" class="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[10px] font-bold transition-all shadow-sm">
+                                                    <i class="fas fa-times mr-1"></i>Reject
+                                                </button>
+                                            </div>
+                                            <button type="button" @click="deleteTx(tx.id)" title="Delete Transaction Record" class="p-1.5 bg-slate-900 hover:bg-rose-900 text-slate-500 hover:text-rose-300 rounded-lg text-xs transition-colors">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             </template>
+                            <tr x-show="transactionsList.length === 0">
+                                <td colspan="6" class="py-12 text-center text-slate-500">
+                                    <i class="fas fa-receipt text-3xl mb-3 block text-slate-600"></i>
+                                    <p class="font-bold text-slate-400">No transactions match your current search filters</p>
+                                    <p class="text-[11px] text-slate-600 mt-1">Try resetting filters or inject a manual test transaction above.</p>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -2371,11 +2475,330 @@
                         <input type="text" x-model="injectTxForm.reference" placeholder="e.g. WIRE-998822" class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono">
                     </div>
                 </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-400 mb-1">Counterparty Account / IBAN</label>
+                        <input type="text" x-model="injectTxForm.counterpartyAccount" placeholder="e.g. 1029384756 or US89..." class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-400 mb-1">Internal Compliance Note</label>
+                        <input type="text" x-model="injectTxForm.internalNotes" placeholder="e.g. Fedwire ledger clearance note" class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white">
+                    </div>
+                </div>
                 <div class="flex justify-end space-x-3 pt-3 border-t border-slate-800">
                     <button type="button" @click="showInjectTxModal = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold">Cancel</button>
                     <button type="submit" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-black rounded-xl shadow-lg shadow-sky-600/20">Inject Transaction</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- 3.1. EDIT TRANSACTION MODAL -->
+    <div x-show="showEditTxModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-3xl shadow-2xl p-6 space-y-4" @click.outside="showEditTxModal = false">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-black text-white flex items-center space-x-2">
+                    <i class="fas fa-edit text-amber-400"></i><span>Edit Transaction &amp; Parameters</span>
+                </h3>
+                <button type="button" @click="showEditTxModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+            <form @submit.prevent="submitEditTransaction()" class="space-y-4 text-xs">
+                <div class="grid grid-cols-2 gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <div>
+                        <span class="text-[10px] uppercase font-bold text-slate-500">Transaction ID</span>
+                        <div class="font-mono text-slate-300 truncate" x-text="editTxForm.id"></div>
+                    </div>
+                    <div>
+                        <span class="text-[10px] uppercase font-bold text-slate-500">Reference Code</span>
+                        <div class="font-mono font-bold text-sky-400" x-text="editTxForm.reference"></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-400 mb-1">Transaction Status *</label>
+                        <select x-model="editTxForm.status" class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-bold">
+                            <option value="SUCCESS">SUCCESS / COMPLETED</option>
+                            <option value="PENDING">PENDING</option>
+                            <option value="PROCESSING">PROCESSING</option>
+                            <option value="REQUIRES_REVIEW">UNDER REVIEW</option>
+                            <option value="FAILED">FAILED</option>
+                            <option value="CANCELLED">CANCELLED</option>
+                            <option value="REVERSED">REVERSED</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-400 mb-1">Amount *</label>
+                        <input type="number" step="0.01" x-model="editTxForm.amount" required class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono font-bold">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-400 mb-1">Fee Amount</label>
+                        <input type="number" step="0.01" x-model="editTxForm.fee" class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-400 mb-1">Description / Memo</label>
+                        <input type="text" x-model="editTxForm.description" class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-400 mb-1">Counterparty / Beneficiary Name</label>
+                        <input type="text" x-model="editTxForm.counterpartyName" placeholder="e.g. Apex Global Trading" class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-400 mb-1">Counterparty Bank</label>
+                        <input type="text" x-model="editTxForm.counterpartyBank" placeholder="e.g. Bank of America" class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-400 mb-1">Counterparty Account / IBAN</label>
+                    <input type="text" x-model="editTxForm.counterpartyAccount" placeholder="e.g. US99CHAS1234567890" class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono">
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-400 mb-1">Add Internal Compliance Note</label>
+                    <textarea x-model="editTxForm.internalNotes" rows="2" placeholder="Administrative memo recorded in audit ledger..." class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white"></textarea>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-400 mb-1">Reason for Administrative Modification</label>
+                    <input type="text" x-model="editTxForm.reason" placeholder="e.g. Compliance clearance or customer correction" class="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white">
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-3 border-t border-slate-800">
+                    <button type="button" @click="showEditTxModal = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl shadow-lg shadow-amber-500/20">Save Modifications</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3.2. TRANSACTION DETAILS 360° & AUDIT TRAIL MODAL -->
+    <div x-show="showTxDetailsModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-3xl shadow-2xl p-6 space-y-5 max-h-[92vh] overflow-y-auto custom-scrollbar" @click.outside="showTxDetailsModal = false">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center font-black border border-sky-500/20">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-black text-white">Transaction 360° Inspection &amp; Audit Trail</h3>
+                        <div class="text-[10px] font-mono text-slate-400" x-text="selectedTxDetails?.id"></div>
+                    </div>
+                </div>
+                <button type="button" @click="showTxDetailsModal = false" class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+
+            <template x-if="selectedTxDetails">
+                <div class="space-y-5 text-xs">
+                    <!-- Top Summary Card -->
+                    <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Reference Code</div>
+                            <div class="text-base font-mono font-black text-sky-400" x-text="selectedTxDetails.reference"></div>
+                            <div class="text-[10px] text-slate-400 font-mono mt-0.5" x-text="new Date(selectedTxDetails.createdAt).toLocaleString()"></div>
+                        </div>
+                        <div class="sm:text-right">
+                            <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Gross Settlement Amount</div>
+                            <div class="text-xl font-mono font-black" :class="selectedTxDetails.type.includes('CREDIT') || selectedTxDetails.type.includes('DEPOSIT') ? 'text-emerald-400' : 'text-white'" x-text="(selectedTxDetails.currencyCode || 'USD') + ' ' + parseFloat(selectedTxDetails.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })"></div>
+                            <div class="text-[10px] text-slate-400" x-text="'Fee: ' + (selectedTxDetails.currencyCode || 'USD') + ' ' + (parseFloat(selectedTxDetails.fee || 0).toFixed(2)) + ' • Net: ' + (selectedTxDetails.currencyCode || 'USD') + ' ' + (parseFloat(selectedTxDetails.netAmount || selectedTxDetails.amount).toLocaleString('en-US', { minimumFractionDigits: 2 }))"></div>
+                        </div>
+                    </div>
+
+                    <!-- 2-Column Parties dossier -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                            <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                                <span>Originating Account</span>
+                                <i class="fas fa-arrow-up-from-bracket text-sky-400"></i>
+                            </div>
+                            <div class="text-sm font-bold text-white" x-text="selectedTxDetails.user ? (selectedTxDetails.user.profile?.firstName ? (selectedTxDetails.user.profile.firstName + ' ' + selectedTxDetails.user.profile.lastName) : selectedTxDetails.user.username) : 'Direct System Account'"></div>
+                            <div class="font-mono text-slate-400 text-[11px]" x-text="'Account: #' + (selectedTxDetails.sourceAccount?.accountNumber || 'SYSTEM / INGESTION')"></div>
+                            <div class="text-[10px] text-slate-500" x-text="selectedTxDetails.user?.email || 'N/A'"></div>
+                        </div>
+
+                        <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                            <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                                <span>Beneficiary / Counterparty</span>
+                                <i class="fas fa-arrow-down-to-bracket text-emerald-400"></i>
+                            </div>
+                            <div class="text-sm font-bold text-white" x-text="selectedTxDetails.metadata?.counterpartyName || selectedTxDetails.destinationAccount?.accountName || 'External Counterparty'"></div>
+                            <div class="font-mono text-slate-400 text-[11px]" x-text="'Bank: ' + (selectedTxDetails.metadata?.counterpartyBank || 'Silverhawk Central Clearing')"></div>
+                            <div class="font-mono text-[10px] text-slate-500" x-text="'Account/IBAN: ' + (selectedTxDetails.metadata?.counterpartyAccount || selectedTxDetails.destinationAccount?.accountNumber || 'N/A')"></div>
+                        </div>
+                    </div>
+
+                    <!-- Meta Details & Narrative -->
+                    <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Transaction Narrative &amp; Rail Metadata</div>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <div>
+                                <span class="text-[10px] text-slate-500 block">Payment Rail</span>
+                                <span class="font-bold text-white uppercase" x-text="selectedTxDetails.metadata?.rail || selectedTxDetails.type"></span>
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-slate-500 block">Status</span>
+                                <span class="font-bold uppercase" :class="selectedTxDetails.status === 'SUCCESS' ? 'text-emerald-400' : 'text-amber-400'" x-text="selectedTxDetails.status"></span>
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-slate-500 block">Description</span>
+                                <span class="text-slate-200" x-text="selectedTxDetails.description"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Audit Trail Stream -->
+                    <div class="space-y-2">
+                        <div class="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center space-x-1.5">
+                            <i class="fas fa-fingerprint text-sky-400"></i>
+                            <span>State Transitions &amp; Cryptographic Audit Trail</span>
+                        </div>
+                        <div class="bg-slate-950 rounded-2xl border border-slate-800 p-4 divide-y divide-slate-800/80 max-h-56 overflow-y-auto custom-scrollbar">
+                            <template x-for="log in selectedTxAuditLogs" :key="log.id">
+                                <div class="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-3">
+                                    <div class="space-y-0.5">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="font-bold text-sky-300 font-mono text-[11px]" x-text="log.action"></span>
+                                            <template x-if="log.afterState?.newStatus">
+                                                <span class="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-slate-300 font-mono" x-text="(log.beforeState?.status || 'INIT') + ' ➔ ' + log.afterState.newStatus"></span>
+                                            </template>
+                                        </div>
+                                        <template x-if="log.afterState?.internalNotes || log.afterState?.reason">
+                                            <div class="text-[10px] text-slate-400 italic" x-text="'Memo: ' + (log.afterState.internalNotes || log.afterState.reason)"></div>
+                                        </template>
+                                        <div class="text-[9px] text-slate-500 font-mono" x-text="'Actor: ' + (log.actorId || 'System') + ' • ' + new Date(log.createdAt).toLocaleString()"></div>
+                                    </div>
+                                    <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-900 text-slate-400 border border-slate-800 shrink-0">Recorded</span>
+                                </div>
+                            </template>
+                            <div x-show="selectedTxAuditLogs.length === 0" class="py-4 text-center text-slate-600 text-[11px]">
+                                No audit records logged for this transaction yet.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Actions -->
+                    <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+                        <div class="flex items-center space-x-2">
+                            <button type="button" @click="showTxDetailsModal = false; openEditTransactionModal(selectedTxDetails)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl font-bold flex items-center space-x-1.5 border border-slate-700">
+                                <i class="fas fa-edit"></i><span>Edit Record</span>
+                            </button>
+                            <button type="button" @click="openAdminEmailPreview(selectedTxDetails)" class="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-sky-300 hover:text-white rounded-xl font-bold flex items-center space-x-1.5 border border-sky-500/40 transition-colors">
+                                <i class="fas fa-envelope-open-text text-xs"></i><span>Transactional Email</span>
+                            </button>
+                            <button type="button" @click="approveTx(selectedTxDetails.id); showTxDetailsModal = false;" x-show="selectedTxDetails.status !== 'SUCCESS'" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center space-x-1.5">
+                                <i class="fas fa-check"></i><span>Approve</span>
+                            </button>
+                            <button type="button" @click="pendTx(selectedTxDetails.id); showTxDetailsModal = false;" x-show="selectedTxDetails.status !== 'PENDING'" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold flex items-center space-x-1.5">
+                                <i class="fas fa-clock"></i><span>Pend</span>
+                            </button>
+                            <button type="button" @click="rejectTx(selectedTxDetails.id); showTxDetailsModal = false;" x-show="selectedTxDetails.status !== 'FAILED' && selectedTxDetails.status !== 'CANCELLED'" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold flex items-center space-x-1.5">
+                                <i class="fas fa-times"></i><span>Reject</span>
+                            </button>
+                        </div>
+                        <button type="button" @click="showTxDetailsModal = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold">Close Dossier</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- ADMIN TRANSACTIONAL EMAIL INSPECTOR MODAL                           -->
+    <!-- =================================================================== -->
+    <div x-show="showAdminEmailModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-3xl shadow-2xl p-5 sm:p-6 space-y-4 max-h-[94vh] flex flex-col overflow-hidden" @click.outside="showAdminEmailModal = false">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-blue-500 text-white flex items-center justify-center shadow-lg shadow-sky-500/20">
+                        <i class="fas fa-envelope-open-text text-base"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h3 class="text-sm font-black text-white tracking-wide">Transactional Email Inspector</h3>
+                        </div>
+                        <p class="text-[11px] text-slate-400">Inspect client notification email dispatched for this ledger event</p>
+                    </div>
+                </div>
+                <button type="button" @click="showAdminEmailModal = false" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Email Lifecycle Switcher Tabs -->
+            <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 custom-scrollbar shrink-0">
+                <button type="button" @click="switchAdminEmailTab('CONFIRMATION')" 
+                        :class="adminEmailTab === 'CONFIRMATION' ? 'bg-amber-500 text-slate-950 font-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'"
+                        class="px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all flex items-center space-x-1.5">
+                    <i class="fas fa-paper-plane text-[10px]"></i>
+                    <span>1. Submitted</span>
+                </button>
+                <button type="button" @click="switchAdminEmailTab('PROCESSING')" 
+                        :class="adminEmailTab === 'PROCESSING' ? 'bg-sky-500 text-slate-950 font-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'"
+                        class="px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all flex items-center space-x-1.5">
+                    <i class="fas fa-sync text-[10px]"></i>
+                    <span>2. Processing</span>
+                </button>
+                <button type="button" @click="switchAdminEmailTab('REQUIRES_REVIEW')" 
+                        :class="adminEmailTab === 'REQUIRES_REVIEW' ? 'bg-purple-500 text-white font-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'"
+                        class="px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all flex items-center space-x-1.5">
+                    <i class="fas fa-shield-halved text-[10px]"></i>
+                    <span>3. Under Review</span>
+                </button>
+                <button type="button" @click="switchAdminEmailTab('COMPLETED')" 
+                        :class="adminEmailTab === 'COMPLETED' ? 'bg-emerald-500 text-slate-950 font-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'"
+                        class="px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all flex items-center space-x-1.5">
+                    <i class="fas fa-check-circle text-[10px]"></i>
+                    <span>4. Completed</span>
+                </button>
+                <button type="button" @click="switchAdminEmailTab('FAILED')" 
+                        :class="adminEmailTab === 'FAILED' ? 'bg-rose-500 text-white font-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'"
+                        class="px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all flex items-center space-x-1.5">
+                    <i class="fas fa-circle-xmark text-[10px]"></i>
+                    <span>5. Failed</span>
+                </button>
+                <button type="button" @click="switchAdminEmailTab('CANCELLED')" 
+                        :class="adminEmailTab === 'CANCELLED' ? 'bg-slate-600 text-white font-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'"
+                        class="px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all flex items-center space-x-1.5">
+                    <i class="fas fa-ban text-[10px]"></i>
+                    <span>6. Cancelled</span>
+                </button>
+            </div>
+
+            <!-- Email Envelope Metadata Card -->
+            <div class="bg-slate-950/80 rounded-2xl p-3 border border-slate-800 space-y-1 text-xs shrink-0 font-mono">
+                <div class="flex items-center justify-between text-slate-400">
+                    <div><span class="text-slate-500 font-bold">FROM:</span> <span class="text-slate-200" x-text="adminEmailData.sender"></span></div>
+                    <span class="text-[10px] text-slate-500" x-text="adminEmailData.date"></span>
+                </div>
+                <div class="text-slate-400"><span class="text-slate-500 font-bold">TO:</span> <span class="text-slate-200" x-text="adminEmailData.recipient"></span></div>
+                <div class="text-slate-400 pt-1 border-t border-slate-800"><span class="text-slate-500 font-bold">SUBJECT:</span> <span class="text-white font-bold" x-text="adminEmailData.subject"></span></div>
+            </div>
+
+            <!-- Email HTML Viewer Container -->
+            <div class="relative flex-1 bg-white rounded-2xl overflow-hidden shadow-inner border border-slate-700 min-h-[380px] max-h-[58vh]">
+                <template x-if="adminEmailLoading">
+                    <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center space-y-3 text-white">
+                        <i class="fas fa-circle-notch fa-spin text-2xl text-sky-400"></i>
+                        <span class="text-xs font-bold text-slate-300">Rendering Template Preview...</span>
+                    </div>
+                </template>
+                <iframe class="w-full h-full border-0 bg-[#f8fafc]"
+                        sandbox="allow-same-origin"
+                        :srcdoc="adminEmailData.html"></iframe>
+            </div>
+
+            <div class="flex items-center justify-between pt-1 text-[11px] text-slate-400 shrink-0">
+                <span class="text-xs text-emerald-400"><i class="fas fa-check-circle mr-1"></i> Rendered from NestJS EmailEngine</span>
+                <button type="button" @click="showAdminEmailModal = false" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs">
+                    Close
+                </button>
+            </div>
         </div>
     </div>
 
@@ -3103,6 +3526,9 @@
                 userRoleFilter: '',
                 withdrawalStatusFilter: '',
                 cardStatusFilter: 'ALL',
+                txFilterSearch: '',
+                txFilterStatus: '',
+                txFilterType: '',
                 auditSearchQuery: '',
                 auditActionFilter: '',
                 auditPage: 1,
@@ -3120,6 +3546,21 @@
                 showAuditModal: false,
                 showAdjustBalanceModal: false,
                 showInjectTxModal: false,
+                showEditTxModal: false,
+                showTxDetailsModal: false,
+                selectedTxDetails: null,
+                selectedTxAuditLogs: [],
+                showAdminEmailModal: false,
+                adminEmailLoading: false,
+                adminEmailTab: 'CONFIRMATION',
+                adminEmailData: {
+                    subject: 'Transfer Instruction Received',
+                    sender: 'Silverhawk Treasury <no-reply@remivellebank.com>',
+                    recipient: 'Customer Account',
+                    date: '',
+                    html: '',
+                    tx: null
+                },
                 showDossierModal: false,
                 showCreateLoanProductModal: false,
                 showCreateStaffModal: false,
@@ -3161,6 +3602,19 @@
                     status: 'ACTIVE',
                     role: 'CUSTOMER'
                 },
+                editTxForm: {
+                    id: '',
+                    reference: '',
+                    status: 'SUCCESS',
+                    amount: '',
+                    fee: '0.00',
+                    description: '',
+                    counterpartyName: '',
+                    counterpartyBank: '',
+                    counterpartyAccount: '',
+                    internalNotes: '',
+                    reason: ''
+                },
                 issueCardForm: {
                     accountId: '',
                     brand: 'VISA',
@@ -3188,9 +3642,11 @@
                     amount: '',
                     counterpartyName: '',
                     counterpartyBank: '',
+                    counterpartyAccount: '',
                     description: '',
                     status: 'SUCCESS',
-                    reference: ''
+                    reference: '',
+                    internalNotes: ''
                 },
                 createLoanProductForm: {
                     name: '',
@@ -3389,7 +3845,11 @@
 
                 async loadTransactions() {
                     try {
-                        const res = await window.SilverhawkAdminAPI.getTransactions();
+                        const query = {};
+                        if (this.txFilterSearch) query.search = this.txFilterSearch;
+                        if (this.txFilterStatus) query.status = this.txFilterStatus;
+                        if (this.txFilterType) query.type = this.txFilterType;
+                        const res = await window.SilverhawkAdminAPI.getTransactions(query);
                         this.transactionsList = res.transactions || [];
                     } catch (e) {
                         console.warn('Transactions load error:', e);
@@ -3638,9 +4098,11 @@
                         amount: '',
                         counterpartyName: '',
                         counterpartyBank: '',
+                        counterpartyAccount: '',
                         description: '',
                         status: 'SUCCESS',
-                        reference: ''
+                        reference: '',
+                        internalNotes: ''
                     };
                     this.showInjectTxModal = true;
                 },
@@ -3655,6 +4117,170 @@
                         await this.loadAnalytics();
                     } catch (err) {
                         window.SilverhawkToast(err.message || 'Injection failed', 'error');
+                    }
+                },
+
+                openEditTransactionModal(tx) {
+                    this.editTxForm = {
+                        id: tx.id,
+                        reference: tx.reference,
+                        status: (tx.metadata?.reviewStatus === 'REQUIRES_REVIEW' ? 'REQUIRES_REVIEW' : tx.status) || 'SUCCESS',
+                        amount: parseFloat(tx.amount || 0).toFixed(2),
+                        fee: parseFloat(tx.fee || 0).toFixed(2),
+                        description: tx.description || '',
+                        counterpartyName: tx.metadata?.counterpartyName || '',
+                        counterpartyBank: tx.metadata?.counterpartyBank || '',
+                        counterpartyAccount: tx.metadata?.counterpartyAccount || '',
+                        internalNotes: '',
+                        reason: ''
+                    };
+                    this.showEditTxModal = true;
+                },
+
+                async submitEditTransaction() {
+                    try {
+                        await window.SilverhawkAdminAPI.updateTransaction(this.editTxForm.id, this.editTxForm);
+                        window.SilverhawkToast('Transaction and compliance parameters updated!', 'success');
+                        this.showEditTxModal = false;
+                        await this.loadTransactions();
+                        await this.loadAccounts();
+                        await this.loadAnalytics();
+                    } catch (err) {
+                        window.SilverhawkToast(err.message || 'Transaction update failed', 'error');
+                    }
+                },
+
+                async openTxDetailsModal(tx) {
+                    try {
+                        const res = await window.SilverhawkAdminAPI.getTransactionDetails(tx.id);
+                        this.selectedTxDetails = res.transaction || tx;
+                        this.selectedTxAuditLogs = res.auditLogs || [];
+                        this.showTxDetailsModal = true;
+                    } catch (err) {
+                        this.selectedTxDetails = tx;
+                        this.selectedTxAuditLogs = [];
+                        this.showTxDetailsModal = true;
+                    }
+                },
+
+                async openAdminEmailPreview(tx, requestedType = null) {
+                    const mapType = (status) => {
+                        const s = (status || '').toUpperCase();
+                        if (s === 'PENDING') return 'CONFIRMATION';
+                        if (s === 'PROCESSING' || s === 'SUBMITTED') return 'PROCESSING';
+                        if (s === 'REQUIRES_REVIEW' || s === 'UNDER_REVIEW' || s === 'REVIEW') return 'REQUIRES_REVIEW';
+                        if (s === 'COMPLETED' || s === 'SUCCESS') return 'COMPLETED';
+                        if (s === 'FAILED' || s === 'REJECTED') return 'FAILED';
+                        if (s === 'CANCELLED' || s === 'REVERSED') return 'CANCELLED';
+                        return 'CONFIRMATION';
+                    };
+
+                    const targetType = requestedType || mapType(tx?.status);
+                    this.adminEmailTab = targetType;
+                    this.adminEmailLoading = true;
+                    this.adminEmailData.tx = tx;
+                    this.showAdminEmailModal = true;
+
+                    await this.fetchAdminEmailContent(targetType, tx);
+                },
+
+                async switchAdminEmailTab(type) {
+                    this.adminEmailTab = type;
+                    this.adminEmailLoading = true;
+                    await this.fetchAdminEmailContent(type, this.adminEmailData.tx);
+                },
+
+                async fetchAdminEmailContent(type, tx) {
+                    const amount = tx?.amount ? parseFloat(tx.amount).toFixed(2) : '10,000.00';
+                    const currency = tx?.currency || 'USD';
+                    const fee = tx?.fee !== undefined ? parseFloat(tx.fee).toFixed(2) : '15.00';
+                    const totalDebit = (parseFloat(amount) + parseFloat(fee)).toFixed(2);
+                    const ref = tx?.reference || 'TRF-' + Math.floor(100000 + Math.random() * 900000);
+                    const counterparty = tx?.beneficiaryName || tx?.recipientName || (tx?.user ? `${tx.user.profile?.firstName || ''} ${tx.user.profile?.lastName || ''}`.trim() : 'Apex Global Holdings Inc.');
+                    const counterpartyAcc = tx?.accountNumber || '4089192834';
+                    const bankName = tx?.bankName || 'JPMorgan Chase NY';
+                    const userEmail = tx?.user?.email || 'customer@client.remivellebank.com';
+                    const userName = tx?.user?.profile ? `${tx.user.profile.firstName} ${tx.user.profile.lastName}`.trim() : 'Valued Treasury Client';
+
+                    const params = new URLSearchParams({
+                        type,
+                        recipientName: userName,
+                        recipientEmail: userEmail,
+                        amount,
+                        currency,
+                        fee,
+                        totalDebit,
+                        reference: ref,
+                        counterpartyName: counterparty,
+                        counterpartyAccount: counterpartyAcc,
+                        bankName,
+                        wireRail: tx?.wireRail || tx?.type || 'DOMESTIC_WIRE',
+                        reason: tx?.internalNotes || tx?.rejectionReason || (type === 'REQUIRES_REVIEW' ? 'Routine institutional compliance verification under FinCEN Rule 31 CFR § 1010.410' : (type === 'FAILED' ? 'Compliance rejection / Intermediary rail failure' : 'Cancelled via admin protocol')),
+                        actionRequired: type === 'REQUIRES_REVIEW' ? 'Submit counterparty invoice & source of funds verification' : '',
+                        actionUrl: window.location.origin + '/dashboard.html'
+                    }).toString();
+
+                    try {
+                        const res = await fetch(`/api/v1/notifications/email-templates/preview?${params}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            const payload = data.data || data;
+                            this.adminEmailData.subject = payload.subject || `Silverhawk Notification — ${ref}`;
+                            this.adminEmailData.sender = 'Silverhawk Digital Federal Trust <no-reply@remivellebank.com>';
+                            this.adminEmailData.recipient = `${userName} <${userEmail}>`;
+                            this.adminEmailData.date = new Date().toUTCString();
+                            this.adminEmailData.html = payload.html;
+                            this.adminEmailLoading = false;
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn('[AdminEmailPreview] Backend preview endpoint failed:', e);
+                    }
+
+                    // Fallback
+                    this.adminEmailData.subject = `Silverhawk Notification — ${ref}`;
+                    this.adminEmailData.sender = 'Silverhawk Digital Federal Trust <no-reply@remivellebank.com>';
+                    this.adminEmailData.recipient = `${userName} <${userEmail}>`;
+                    this.adminEmailData.date = new Date().toUTCString();
+                    this.adminEmailData.html = `<div style="font-family: sans-serif; padding: 20px; background: #f8fafc;"><h2>Silverhawk Transaction Notice (${type})</h2><p>Reference: <b>${ref}</b></p><p>Amount: <b>${currency} ${amount}</b></p><p>Recipient: <b>${counterparty}</b></p></div>`;
+                    this.adminEmailLoading = false;
+                },
+
+                async underReviewTx(id) {
+                    const reason = prompt('Specify compliance review reason / flag narrative:', 'Flagged for AML source of funds verification');
+                    if (reason === null) return;
+                    try {
+                        await window.SilverhawkAdminAPI.setTransactionUnderReview(id, reason);
+                        window.SilverhawkToast('Transaction status moved to UNDER REVIEW', 'info');
+                        await this.loadTransactions();
+                        await this.loadAnalytics();
+                    } catch (err) {
+                        window.SilverhawkToast(err.message || 'Review triage failed', 'error');
+                    }
+                },
+
+                async deleteTx(id) {
+                    if (!confirm('Are you sure you want to permanently delete this transaction record from the ledger?')) return;
+                    try {
+                        await window.SilverhawkAdminAPI.deleteTransaction(id);
+                        window.SilverhawkToast('Transaction record deleted successfully.', 'info');
+                        await this.loadTransactions();
+                        await this.loadAccounts();
+                        await this.loadAnalytics();
+                    } catch (err) {
+                        window.SilverhawkToast(err.message || 'Delete failed', 'error');
+                    }
+                },
+
+                async exportTransactionsReport(format = 'CSV') {
+                    try {
+                        const query = { format };
+                        if (this.txFilterSearch) query.search = this.txFilterSearch;
+                        if (this.txFilterStatus) query.status = this.txFilterStatus;
+                        if (this.txFilterType) query.type = this.txFilterType;
+                        await window.SilverhawkAdminAPI.exportTransactions(query);
+                    } catch (err) {
+                        window.SilverhawkToast(err.message || 'Export failed', 'error');
                     }
                 },
 
@@ -3674,6 +4300,20 @@
                         await window.SilverhawkAdminAPI.approveTransaction(id);
                         window.SilverhawkToast('Transaction approved and ledger posted!', 'success');
                         await this.loadTransactions();
+                        await this.loadAccounts();
+                        await this.loadAnalytics();
+                    } catch (err) {
+                        window.SilverhawkToast(err.message, 'error');
+                    }
+                },
+
+                async pendTx(id) {
+                    const reason = prompt('Specify pending memo / compliance note (optional):') || 'Placed on pending status by administrator';
+                    try {
+                        await window.SilverhawkAdminAPI.pendTransaction(id, reason);
+                        window.SilverhawkToast('Transaction status moved to PENDING.', 'info');
+                        await this.loadTransactions();
+                        await this.loadAccounts();
                         await this.loadAnalytics();
                     } catch (err) {
                         window.SilverhawkToast(err.message, 'error');
@@ -3681,12 +4321,13 @@
                 },
 
                 async rejectTx(id) {
-                    const reason = prompt('Specify rejection reason:');
+                    const reason = prompt('Specify rejection reason:') || 'Declined by compliance officer';
                     if (reason === null) return;
                     try {
                         await window.SilverhawkAdminAPI.rejectTransaction(id, reason);
                         window.SilverhawkToast('Transaction rejected and funds restored.', 'info');
                         await this.loadTransactions();
+                        await this.loadAccounts();
                         await this.loadAnalytics();
                     } catch (err) {
                         window.SilverhawkToast(err.message, 'error');

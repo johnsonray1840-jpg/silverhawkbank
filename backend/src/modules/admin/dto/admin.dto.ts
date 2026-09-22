@@ -239,6 +239,55 @@ export class ManualTransactionDto {
   @IsString()
   @IsOptional()
   createdAt?: string; // Backdated ISO date
+
+  @IsString()
+  @IsOptional()
+  internalNotes?: string;
+}
+
+export class UpdateTransactionAdminDto {
+  @IsString()
+  @IsOptional()
+  @IsIn(['SUCCESS', 'PENDING', 'PROCESSING', 'FAILED', 'REVERSED', 'CANCELLED', 'REQUIRES_REVIEW', 'DECLINED'])
+  status?: string;
+
+  @IsOptional()
+  amount?: number | string;
+
+  @IsOptional()
+  fee?: number | string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsString()
+  @IsOptional()
+  reference?: string;
+
+  @IsString()
+  @IsOptional()
+  counterpartyName?: string;
+
+  @IsString()
+  @IsOptional()
+  counterpartyBank?: string;
+
+  @IsString()
+  @IsOptional()
+  counterpartyAccount?: string;
+
+  @IsString()
+  @IsOptional()
+  internalNotes?: string;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
+
+  @IsString()
+  @IsOptional()
+  createdAt?: string; // Allow editing effective date
 }
 
 // -----------------------------------------------------------------------------

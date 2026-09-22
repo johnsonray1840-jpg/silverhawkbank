@@ -41,6 +41,7 @@ import {
   UpdateMasterSettingsDto,
   UpdateRolePermissionsDto,
   UpdateSystemSettingDto,
+  UpdateTransactionAdminDto,
   UpdateUserAdminDto,
 } from './dto/admin.dto';
 import Decimal from 'decimal.js';
@@ -71,6 +72,8 @@ import { StatementGeneratorUtil } from '../../common/utils/statement-generator.u
 import { EventsGateway } from '../events/events.gateway';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class AdminService {
@@ -78,6 +81,8 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly notificationsService: NotificationsService,
+    private readonly emailService: EmailService,
     private readonly eventsGateway?: EventsGateway,
   ) {}
 
@@ -1411,14 +1416,24 @@ export class AdminService {
 
     const where: any = {};
     if (query?.status) where.status = query.status as TransactionStatus;
-    if (query?.type) where.type = query.type as TransactionType;
-    if (query?.search) {
+    if (query?.type) {
+      if ((query.type as any) === 'TRANSFER_DOMESTIC') {
+        where.type = TransactionType.TRANSFER_EXTERNAL;
+      } else {
+        where.type = query.type as TransactionType;
+      }
+    }
+    if (query?.search && query.search.trim()) {
+      const s = query.search.trim();
       where.OR = [
-        { reference: { contains: query.search } },
-        { description: { contains: query.search } },
-        { user: { email: { contains: query.search } } },
-        { sourceAccount: { accountNumber: { contains: query.search } } },
-        { destinationAccount: { accountNumber: { contains: query.search } } },
+        { reference: { contains: s } },
+        { description: { contains: s } },
+        { user: { email: { contains: s } } },
+        { user: { username: { contains: s } } },
+        { user: { profile: { firstName: { contains: s } } } },
+        { user: { profile: { lastName: { contains: s } } } },
+        { sourceAccount: { accountNumber: { contains: s } } },
+        { destinationAccount: { accountNumber: { contains: s } } },
       ];
     }
 
@@ -1531,15 +1546,21 @@ export class AdminService {
       include: { sourceAccount: true, destinationAccount: true },
     });
     if (!transaction) throw new NotFoundException('Transaction not found');
-    if (transaction.status === TransactionStatus.SUCCESS) {
-      throw new BadRequestException('Transaction is already approved/completed');
-    }
 
     await this.prisma.$transaction(async (tx) => {
+      const currentMeta = (transaction.metadata as any) || {};
+      const updatedMeta = {
+        ...currentMeta,
+        reviewStatus: 'APPROVED',
+        approvedAt: new Date().toISOString(),
+        approvedBy: adminId,
+      };
+
       await tx.transaction.update({
         where: { id },
         data: {
           status: TransactionStatus.SUCCESS,
+          metadata: updatedMeta,
         },
       });
 
@@ -1549,9 +1570,14 @@ export class AdminService {
           action: 'TRANSACTION_APPROVED',
           resource: 'Transaction',
           resourceId: id,
+          afterState: { previousStatus: transaction.status, status: TransactionStatus.SUCCESS },
         },
       });
     });
+
+    try {
+      await this.notificationsService.dispatchTransferCompleted(transaction.userId, { ...transaction, status: TransactionStatus.SUCCESS });
+    } catch (e) {}
 
     return { message: 'Transaction approved successfully' };
   }
@@ -1562,28 +1588,43 @@ export class AdminService {
       include: { sourceAccount: true, destinationAccount: true },
     });
     if (!transaction) throw new NotFoundException('Transaction not found');
-    if (transaction.status !== TransactionStatus.PENDING && transaction.status !== TransactionStatus.PROCESSING) {
-      throw new BadRequestException('Only pending transactions can be rejected');
-    }
 
     await this.prisma.$transaction(async (tx) => {
-      // If it was an outbound transfer, refund the user
+      // If it was already completed or processing, refund the source account if not already failed/reversed
       const refundAccountId = transaction.sourceAccountId;
-      if (refundAccountId && (transaction.type === TransactionType.TRANSFER_EXTERNAL || transaction.type === TransactionType.WITHDRAWAL)) {
+      if (
+        refundAccountId &&
+        transaction.status !== TransactionStatus.FAILED &&
+        transaction.status !== TransactionStatus.CANCELLED &&
+        transaction.status !== TransactionStatus.REVERSED &&
+        (transaction.type === TransactionType.TRANSFER_EXTERNAL ||
+          transaction.type === TransactionType.TRANSFER_INTERNATIONAL ||
+          transaction.type === TransactionType.WITHDRAWAL)
+      ) {
         await tx.bankAccount.update({
           where: { id: refundAccountId },
           data: {
             availableBalance: { increment: transaction.amount },
             currentBalance: { increment: transaction.amount },
+            ledgerBalance: { increment: transaction.amount },
           },
         });
       }
+
+      const currentMeta = (transaction.metadata as any) || {};
+      const updatedMeta = {
+        ...currentMeta,
+        reviewStatus: 'REJECTED',
+        rejectionReason: reason,
+        rejectedAt: new Date().toISOString(),
+        rejectedBy: adminId,
+      };
 
       await tx.transaction.update({
         where: { id },
         data: {
           status: TransactionStatus.FAILED,
-          metadata: { ...((transaction.metadata as any) || {}), rejectionReason: reason },
+          metadata: updatedMeta,
         },
       });
 
@@ -1593,12 +1634,67 @@ export class AdminService {
           action: 'TRANSACTION_REJECTED',
           resource: 'Transaction',
           resourceId: id,
-          afterState: { rejectionReason: reason },
+          beforeState: { status: transaction.status },
+          afterState: { status: TransactionStatus.FAILED, rejectionReason: reason },
         },
       });
     });
 
+    try {
+      await this.notificationsService.dispatchTransferFailed(transaction.userId, { ...transaction, status: TransactionStatus.FAILED }, reason);
+    } catch (e) {}
+
     return { message: 'Transaction rejected and funds restored' };
+  }
+
+  async setTransactionPending(id: string, reason: string, adminId: string) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id },
+      include: { sourceAccount: true, destinationAccount: true },
+    });
+    if (!transaction) throw new NotFoundException('Transaction not found');
+
+    const previousStatus = transaction.status;
+    const currentMeta = (transaction.metadata as any) || {};
+    const updatedMeta = {
+      ...currentMeta,
+      reviewStatus: 'PENDING',
+      pendingReason: reason || 'Marked pending by admin',
+      pendingAt: new Date().toISOString(),
+      pendingBy: adminId,
+    };
+
+    const updated = await this.prisma.transaction.update({
+      where: { id },
+      data: {
+        status: TransactionStatus.PENDING,
+        metadata: updatedMeta,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorId: adminId,
+        actorRole: 'ADMIN',
+        action: 'TRANSACTION_STATUS_UPDATED',
+        resource: 'Transaction',
+        resourceId: id,
+        beforeState: { status: previousStatus },
+        afterState: {
+          previousStatus,
+          newStatus: TransactionStatus.PENDING,
+          reason: reason || 'Marked pending by admin',
+          timestamp: new Date().toISOString(),
+          adminId,
+        },
+      },
+    });
+
+    try {
+      await this.notificationsService.dispatchTransferProcessing(transaction.userId, updated);
+    } catch (e) {}
+
+    return { message: 'Transaction status set to PENDING', transaction: updated };
   }
 
   async reverseTransaction(id: string, adminId: string) {
@@ -1658,7 +1754,213 @@ export class AdminService {
       });
     });
 
+    try {
+      await this.notificationsService.dispatchTransferCancelled(transaction.userId, { ...transaction, status: TransactionStatus.REVERSED }, 'Administrative reversal');
+    } catch (e) {}
+
     return { message: 'Transaction reversed and balance adjusted' };
+  }
+
+  async setTransactionUnderReview(id: string, reason: string, adminId: string) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id },
+      include: { sourceAccount: true, destinationAccount: true },
+    });
+    if (!transaction) throw new NotFoundException('Transaction not found');
+
+    const previousStatus = transaction.status;
+    const currentMeta = (transaction.metadata as any) || {};
+    const updatedMeta = {
+      ...currentMeta,
+      reviewStatus: 'REQUIRES_REVIEW',
+      underReviewReason: reason || 'Flagged for compliance review',
+      underReviewAt: new Date().toISOString(),
+      underReviewBy: adminId,
+    };
+
+    const updated = await this.prisma.transaction.update({
+      where: { id },
+      data: {
+        status: TransactionStatus.PROCESSING,
+        metadata: updatedMeta,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorId: adminId,
+        actorRole: 'ADMIN',
+        action: 'TRANSACTION_STATUS_UPDATED',
+        resource: 'Transaction',
+        resourceId: id,
+        beforeState: { status: previousStatus },
+        afterState: {
+          previousStatus,
+          newStatus: 'REQUIRES_REVIEW',
+          actualStatus: TransactionStatus.PROCESSING,
+          reason: reason || 'Flagged for compliance review',
+          timestamp: new Date().toISOString(),
+          adminId,
+        },
+      },
+    });
+
+    try {
+      await this.notificationsService.dispatchTransferRequiresReview(transaction.userId, updated, reason);
+    } catch (e) {}
+
+    return { message: 'Transaction placed under compliance review', transaction: updated };
+  }
+
+  async updateTransaction(id: string, dto: UpdateTransactionAdminDto, adminId: string) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id },
+      include: { sourceAccount: true, destinationAccount: true },
+    });
+    if (!transaction) throw new NotFoundException('Transaction not found');
+
+    const beforeState: any = {
+      status: transaction.status,
+      amount: transaction.amount.toString(),
+      fee: transaction.fee.toString(),
+      description: transaction.description,
+      reference: transaction.reference,
+      metadata: transaction.metadata,
+      createdAt: transaction.createdAt,
+    };
+
+    const data: any = {};
+    const currentMeta = (transaction.metadata as any) || {};
+    const updatedMeta = { ...currentMeta };
+
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.reference !== undefined) data.reference = dto.reference;
+
+    if (dto.amount !== undefined) {
+      const newAmt = new Decimal(dto.amount.toString());
+      data.amount = newAmt;
+      const currentFee = dto.fee !== undefined ? new Decimal(dto.fee.toString()) : transaction.fee;
+      data.netAmount = newAmt.minus(currentFee);
+    }
+
+    if (dto.fee !== undefined) {
+      const newFee = new Decimal(dto.fee.toString());
+      data.fee = newFee;
+      const currentAmt = dto.amount !== undefined ? new Decimal(dto.amount.toString()) : transaction.amount;
+      data.netAmount = currentAmt.minus(newFee);
+    }
+
+    if (dto.counterpartyName !== undefined) updatedMeta.counterpartyName = dto.counterpartyName;
+    if (dto.counterpartyBank !== undefined) updatedMeta.counterpartyBank = dto.counterpartyBank;
+    if (dto.counterpartyAccount !== undefined) updatedMeta.counterpartyAccount = dto.counterpartyAccount;
+    if (dto.internalNotes !== undefined) {
+      const notesList = Array.isArray(currentMeta.internalNotesList) ? [...currentMeta.internalNotesList] : [];
+      notesList.push({
+        note: dto.internalNotes,
+        adminId,
+        createdAt: new Date().toISOString(),
+      });
+      updatedMeta.internalNotes = dto.internalNotes;
+      updatedMeta.internalNotesList = notesList;
+    }
+
+    let resolvedStatus = transaction.status;
+    if (dto.status) {
+      if (dto.status === 'REQUIRES_REVIEW' || dto.status === 'UNDER_REVIEW') {
+        data.status = TransactionStatus.PROCESSING;
+        updatedMeta.reviewStatus = 'REQUIRES_REVIEW';
+        resolvedStatus = TransactionStatus.PROCESSING;
+      } else if (Object.values(TransactionStatus).includes(dto.status as any)) {
+        data.status = dto.status as TransactionStatus;
+        resolvedStatus = dto.status as TransactionStatus;
+        if (dto.status === TransactionStatus.SUCCESS) {
+          updatedMeta.reviewStatus = 'APPROVED';
+        } else if (dto.status === TransactionStatus.FAILED || dto.status === TransactionStatus.CANCELLED) {
+          updatedMeta.reviewStatus = 'REJECTED';
+        }
+      }
+    }
+
+    data.metadata = updatedMeta;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const res = await tx.transaction.update({
+        where: { id },
+        data,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: adminId,
+          actorRole: 'ADMIN',
+          action: 'TRANSACTION_UPDATED_BY_ADMIN',
+          resource: 'Transaction',
+          resourceId: id,
+          beforeState,
+          afterState: {
+            previousStatus: beforeState.status,
+            newStatus: dto.status || beforeState.status,
+            resolvedStatus,
+            amount: data.amount ? data.amount.toString() : beforeState.amount,
+            description: data.description || beforeState.description,
+            internalNotes: dto.internalNotes || null,
+            reason: dto.reason || null,
+            adminId,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+
+      return res;
+    });
+
+    return { message: 'Transaction modified successfully', transaction: updated };
+  }
+
+  async deleteTransaction(id: string, adminId: string) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id },
+    });
+    if (!transaction) throw new NotFoundException('Transaction not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          actorId: adminId,
+          actorRole: 'ADMIN',
+          action: 'TRANSACTION_DELETED_BY_ADMIN',
+          resource: 'Transaction',
+          resourceId: id,
+          beforeState: {
+            reference: transaction.reference,
+            amount: transaction.amount.toString(),
+            status: transaction.status,
+            type: transaction.type,
+            userId: transaction.userId,
+          },
+          afterState: {
+            deletedAt: new Date().toISOString(),
+            adminId,
+          },
+        },
+      });
+
+      // Remove dependent relationships if any before deleting
+      await tx.transfer.deleteMany({ where: { transactionId: id } });
+      await tx.deposit.deleteMany({ where: { transactionId: id } });
+      await tx.withdrawal.deleteMany({ where: { transactionId: id } });
+      await tx.cardTransaction.deleteMany({ where: { transactionId: id } });
+      await tx.ledgerEntry.deleteMany({
+        where: { journalTransaction: { transactionId: id } },
+      });
+      await tx.journalTransaction.deleteMany({ where: { transactionId: id } });
+
+      await tx.transaction.delete({
+        where: { id },
+      });
+    });
+
+    return { message: 'Transaction deleted successfully' };
   }
 
   async getPendingTransactions(query?: { page?: number; limit?: number; type?: string }) {

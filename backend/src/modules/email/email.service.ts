@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import { PrismaService } from '../../database/prisma.service';
 
 export interface CreditAlertPayload {
   to: string;
@@ -65,6 +66,28 @@ export interface KycEmailPayload {
   requestedInfo?: string;
 }
 
+export interface WireTransferEmailPayload {
+  to: string;
+  senderName: string;
+  recipientName: string;
+  amount: string;
+  fee?: string;
+  currency: string;
+  netAmount?: string;
+  reference: string;
+  accountNumber: string;
+  counterpartyName: string;
+  counterpartyBank: string;
+  counterpartyAccount: string;
+  routingNumber?: string;
+  swiftBic?: string;
+  rail?: string;
+  purpose?: string;
+  reason?: string;
+  status?: string;
+  timestamp?: string;
+  availableBalance?: string;
+}
 
 @Injectable()
 export class EmailService {
@@ -72,7 +95,10 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
   private resendApiKey?: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    @Optional() private prisma?: PrismaService,
+  ) {
     this.resendApiKey =
       this.configService.get<string>('RESEND_API_KEY') ||
       this.configService.get<string>('RESEND_KEY') ||
@@ -96,7 +122,7 @@ export class EmailService {
     }
   }
 
-  private getBaseEmailTemplate(title: string, contentHtml: string): string {
+  public getBaseEmailTemplate(title: string, contentHtml: string): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -105,39 +131,44 @@ export class EmailService {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${title}</title>
         <style>
-          body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b; }
-          .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
-          .header { background: linear-gradient(135deg, #0ea5e9, #0369a1); padding: 32px 20px; text-align: center; color: #ffffff; }
-          .header h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
-          .header p { margin: 6px 0 0; font-size: 14px; opacity: 0.95; }
-          .content { padding: 32px 28px; }
-          .badge-credit { display: inline-block; background: #dcfce7; color: #15803d; font-weight: 700; padding: 6px 14px; border-radius: 9999px; font-size: 13px; }
-          .badge-debit { display: inline-block; background: #fee2e2; color: #b91c1c; font-weight: 700; padding: 6px 14px; border-radius: 9999px; font-size: 13px; }
-          .amount-box { text-align: center; margin: 25px 0; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1; }
-          .amount-box .amount { font-size: 32px; font-weight: 800; color: #0f172a; margin: 5px 0; }
-          .otp-box { text-align: center; margin: 25px 0; padding: 24px; background: #f0f9ff; border-radius: 12px; border: 2px dashed #0ea5e9; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b1120; margin: 0; padding: 24px 12px; color: #1e293b; }
+          .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); border: 1px solid #e2e8f0; }
+          .header { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
+          .header-logo { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: rgba(255, 255, 255, 0.18); border-radius: 12px; margin-bottom: 10px; font-size: 20px; }
+          .header h1 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.5px; }
+          .header p { margin: 4px 0 0; font-size: 13px; color: #e0f2fe; opacity: 0.95; font-weight: 500; }
+          .content { padding: 32px 28px; background: #ffffff; }
+          .badge-status { display: inline-block; font-weight: 800; padding: 6px 14px; border-radius: 9999px; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+          .badge-credit { background: #dcfce7; color: #15803d; }
+          .badge-debit { background: #fee2e2; color: #b91c1c; }
+          .badge-processing { background: #e0f2fe; color: #0284c7; }
+          .badge-review { background: #f3e8ff; color: #7e22ce; }
+          .badge-pending { background: #fef3c7; color: #b45309; }
+          .amount-box { text-align: center; margin: 24px 0; padding: 22px 16px; background: #f8fafc; border-radius: 16px; border: 1px dashed #cbd5e1; }
+          .amount-box .amount { font-size: 30px; font-weight: 900; color: #0f172a; margin: 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+          .otp-box { text-align: center; margin: 24px 0; padding: 24px; background: #f0f9ff; border-radius: 16px; border: 2px dashed #0ea5e9; }
           .otp-code { font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #0284c7; margin: 10px 0; }
-          .details-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
-          .details-table td { padding: 12px 8px; border-bottom: 1px solid #f1f5f9; }
-          .details-table td.label { color: #64748b; font-weight: 500; width: 40%; }
-          .details-table td.value { color: #0f172a; font-weight: 600; text-align: right; }
+          .details-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+          .details-table td { padding: 11px 8px; border-bottom: 1px solid #f1f5f9; }
+          .details-table td.label { color: #64748b; font-weight: 500; width: 42%; }
+          .details-table td.value { color: #0f172a; font-weight: 700; text-align: right; word-break: break-all; }
           .footer { background: #f8fafc; padding: 24px 20px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
-          .footer a { color: #0ea5e9; text-decoration: none; }
-          .btn-action { display: inline-block; background: #0ea5e9; color: #ffffff !important; padding: 12px 28px; border-radius: 10px; font-weight: 700; text-decoration: none; margin-top: 20px; }
+          .footer a { color: #0284c7; text-decoration: none; font-weight: 600; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>Silverhawk</h1>
-            <p>Swift & Secure Digital Banking</p>
+            <div class="header-logo">🦅</div>
+            <h1>Silverhawk Digital Federal Trust</h1>
+            <p>Institutional Clearing &amp; Real-Time Settlement System</p>
           </div>
           <div class="content">
             ${contentHtml}
           </div>
           <div class="footer">
-            <p>&copy; 2026 Silverhawk Bank. All rights reserved.</p>
-            <p>If you did not make this request, please contact our 24/7 security center at <a href="mailto:support@silverhawkbank.com">support@silverhawkbank.com</a> immediately.</p>
+            <p>&copy; 2026 Silverhawk Digital Federal Trust. All rights reserved.</p>
+            <p>If you did not initiate or recognize this action, please contact our 24/7 Security Center at <a href="mailto:security@silverhawkbank.com">security@silverhawkbank.com</a>.</p>
           </div>
         </div>
       </body>
@@ -484,16 +515,245 @@ export class EmailService {
   }
 
   /**
+   * 1. Wire Transfer Confirmation (Order Submitted)
+   */
+  async sendTransferConfirmationEmail(payload: WireTransferEmailPayload) {
+    const rendered = this.getRenderedTransferEmail('CONFIRMATION', payload);
+    return this.sendMail(payload.to, rendered.subject, rendered.html, {
+      templateType: 'CONFIRMATION',
+      reference: payload.reference,
+      recipientName: payload.recipientName,
+      payload,
+    });
+  }
+
+  /**
+   * 2. Wire Transfer Processing Notification
+   */
+  async sendTransferProcessingEmail(payload: WireTransferEmailPayload) {
+    const rendered = this.getRenderedTransferEmail('PROCESSING', payload);
+    return this.sendMail(payload.to, rendered.subject, rendered.html, {
+      templateType: 'PROCESSING',
+      reference: payload.reference,
+      recipientName: payload.recipientName,
+      payload,
+    });
+  }
+
+  /**
+   * 3. Wire Transfer Under Compliance Review
+   */
+  async sendTransferReviewEmail(payload: WireTransferEmailPayload) {
+    const rendered = this.getRenderedTransferEmail('REQUIRES_REVIEW', payload);
+    return this.sendMail(payload.to, rendered.subject, rendered.html, {
+      templateType: 'REQUIRES_REVIEW',
+      reference: payload.reference,
+      recipientName: payload.recipientName,
+      payload,
+    });
+  }
+
+  /**
+   * 4. Wire Transfer Completed & Settled
+   */
+  async sendTransferCompletedEmail(payload: WireTransferEmailPayload) {
+    const rendered = this.getRenderedTransferEmail('COMPLETED', payload);
+    return this.sendMail(payload.to, rendered.subject, rendered.html, {
+      templateType: 'COMPLETED',
+      reference: payload.reference,
+      recipientName: payload.recipientName,
+      payload,
+    });
+  }
+
+  /**
+   * 5. Wire Transfer Failed / Declined
+   */
+  async sendTransferFailedEmail(payload: WireTransferEmailPayload) {
+    const rendered = this.getRenderedTransferEmail('FAILED', payload);
+    return this.sendMail(payload.to, rendered.subject, rendered.html, {
+      templateType: 'FAILED',
+      reference: payload.reference,
+      recipientName: payload.recipientName,
+      payload,
+    });
+  }
+
+  /**
+   * 6. Wire Transfer Cancelled
+   */
+  async sendTransferCancelledEmail(payload: WireTransferEmailPayload) {
+    const rendered = this.getRenderedTransferEmail('CANCELLED', payload);
+    return this.sendMail(payload.to, rendered.subject, rendered.html, {
+      templateType: 'CANCELLED',
+      reference: payload.reference,
+      recipientName: payload.recipientName,
+      payload,
+    });
+  }
+
+  /**
+   * Dynamic Renderer for all simulated transactional transfer emails
+   */
+  public getRenderedTransferEmail(
+    type: 'CONFIRMATION' | 'PROCESSING' | 'REQUIRES_REVIEW' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | string,
+    payload: Partial<WireTransferEmailPayload>,
+  ): { subject: string; html: string } {
+    const amtNum = parseFloat((payload.amount?.toString() || '0').replace(/,/g, ''));
+    const feeNum = parseFloat((payload.fee?.toString() || '0').replace(/,/g, ''));
+    const netNum = payload.netAmount ? parseFloat(payload.netAmount.toString().replace(/,/g, '')) : amtNum - feeNum;
+    const currency = payload.currency || 'USD';
+    const formattedAmount = `${currency} ${amtNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formattedFee = `${currency} ${feeNum.toFixed(2)}`;
+    const formattedNet = `${currency} ${netNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const sender = payload.senderName || 'Valued Client';
+    const beneficiary = payload.counterpartyName || payload.recipientName || 'External Beneficiary';
+    const bank = payload.counterpartyBank || 'Beneficiary Institution';
+    const account = payload.counterpartyAccount || 'N/A';
+    const ref = payload.reference || `TRF-${Date.now().toString().slice(-8)}`;
+    const timeStr = payload.timestamp ? new Date(payload.timestamp).toUTCString() : new Date().toUTCString();
+    const rail = payload.rail || 'FEDWIRE_STANDARD';
+
+    let badgeHtml = '';
+    let headline = '';
+    let introMessage = '';
+    let subject = '';
+
+    switch (type) {
+      case 'CONFIRMATION':
+        badgeHtml = `<span class="badge-status badge-processing" style="background: #e0f2fe; color: #0284c7;">✓ ORDER SUBMITTED</span>`;
+        headline = 'Wire Transfer Order Received';
+        subject = `Wire Order Confirmation: ${formattedAmount} to ${beneficiary} [Ref: ${ref}]`;
+        introMessage = `We have received your funds transfer order of <strong>${formattedAmount}</strong>. Your transaction has been logged and queued for automated network routing.`;
+        break;
+
+      case 'PROCESSING':
+        badgeHtml = `<span class="badge-status badge-pending" style="background: #fef3c7; color: #b45309;">⚡ CLEARING IN PROGRESS</span>`;
+        headline = 'Transfer Processing &amp; Gateway Clearing';
+        subject = `Transfer Clearing: ${formattedAmount} is in transit to ${beneficiary} [Ref: ${ref}]`;
+        introMessage = `Your wire order of <strong>${formattedAmount}</strong> is currently being cleared across institutional settlement payment rails. Automated AML and OFAC verification in progress.`;
+        break;
+
+      case 'REQUIRES_REVIEW':
+        badgeHtml = `<span class="badge-status badge-review" style="background: #f3e8ff; color: #7e22ce;">🔍 COMPLIANCE REVIEW</span>`;
+        headline = 'Transfer Placed Under Review';
+        subject = `Action Notice: Transfer of ${formattedAmount} is Under Review [Ref: ${ref}]`;
+        introMessage = `Your transfer of <strong>${formattedAmount}</strong> has been flagged for standard institutional compliance inspection.${payload.reason ? `<br><br><strong>Compliance Memo:</strong> ${payload.reason}` : ''}<br>Our operations desk is verifying the routing parameters. No action is required from you at this time.`;
+        break;
+
+      case 'COMPLETED':
+        badgeHtml = `<span class="badge-status badge-credit" style="background: #dcfce7; color: #15803d;">🎉 SETTLED &amp; DELIVERED</span>`;
+        headline = 'Wire Transfer Successfully Completed';
+        subject = `Transfer Delivered: ${formattedAmount} to ${beneficiary} is Complete [Ref: ${ref}]`;
+        introMessage = `Great news! Your funds transfer of <strong>${formattedAmount}</strong> has been finalized and delivered to the beneficiary account at <strong>${bank}</strong>.`;
+        break;
+
+      case 'FAILED':
+        badgeHtml = `<span class="badge-status badge-debit" style="background: #fee2e2; color: #b91c1c;">✕ TRANSFER FAILED</span>`;
+        headline = 'Wire Transfer Could Not Be Processed';
+        subject = `Transfer Alert: Transfer of ${formattedAmount} to ${beneficiary} Failed [Ref: ${ref}]`;
+        introMessage = `We regret to inform you that your transfer of <strong>${formattedAmount}</strong> could not be completed.${payload.reason ? `<br><br><strong>Reason:</strong> ${payload.reason}` : ''}<br><br>If funds were deducted, they have been automatically refunded to your originating account balance.`;
+        break;
+
+      case 'CANCELLED':
+        badgeHtml = `<span class="badge-status" style="background: #f1f5f9; color: #475569;">⊘ TRANSFER CANCELLED</span>`;
+        headline = 'Wire Transfer Cancelled';
+        subject = `Transfer Notice: Wire Order ${ref} Cancelled`;
+        introMessage = `Your funds transfer order of <strong>${formattedAmount}</strong> has been cancelled.${payload.reason ? `<br><br><strong>Reason:</strong> ${payload.reason}` : ''}`;
+        break;
+
+      default:
+        badgeHtml = `<span class="badge-status badge-processing">${type}</span>`;
+        headline = 'Transaction Status Update';
+        subject = `Silverhawk Update: Wire Transfer ${ref} - ${type}`;
+        introMessage = `Your wire transfer order ${ref} has been updated to status: <strong>${type}</strong>.`;
+    }
+
+    const content = `
+      <div style="text-align: center; margin-bottom: 20px;">
+        ${badgeHtml}
+      </div>
+      <h2 style="font-size: 20px; color: #0f172a; text-align: center; margin-top: 0; margin-bottom: 12px; font-weight: 800;">${headline}</h2>
+      
+      <div class="amount-box">
+        <div style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px;">Transfer Principal Amount</div>
+        <div class="amount">${formattedAmount}</div>
+        <div style="font-size: 12px; color: #64748b; font-weight: 500; margin-top: 4px;">Network Fee: ${formattedFee} &bull; Net Delivery: ${formattedNet}</div>
+      </div>
+
+      <p style="font-size: 15px; color: #334155; line-height: 1.6; margin-top: 0;">
+        Dear <strong>${sender}</strong>,
+      </p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        ${introMessage}
+      </p>
+
+      <table class="details-table">
+        <tr>
+          <td class="label">Transaction Reference</td>
+          <td class="value" style="font-family: monospace; color: #0284c7;">${ref}</td>
+        </tr>
+        <tr>
+          <td class="label">Beneficiary Name</td>
+          <td class="value">${beneficiary}</td>
+        </tr>
+        <tr>
+          <td class="label">Beneficiary Bank</td>
+          <td class="value">${bank}</td>
+        </tr>
+        <tr>
+          <td class="label">Account / IBAN</td>
+          <td class="value" style="font-family: monospace;">${account}</td>
+        </tr>
+        ${payload.routingNumber ? `<tr><td class="label">ABA Routing / SWIFT</td><td class="value" style="font-family: monospace;">${payload.routingNumber}</td></tr>` : ''}
+        ${payload.swiftBic ? `<tr><td class="label">SWIFT BIC</td><td class="value" style="font-family: monospace;">${payload.swiftBic}</td></tr>` : ''}
+        <tr>
+          <td class="label">Payment Rail</td>
+          <td class="value" style="text-transform: uppercase;">${rail.replace('_', ' ')}</td>
+        </tr>
+        ${payload.purpose ? `<tr><td class="label">Transfer Purpose</td><td class="value">${payload.purpose}</td></tr>` : ''}
+        <tr>
+          <td class="label">Timestamp</td>
+          <td class="value">${timeStr}</td>
+        </tr>
+      </table>
+
+      <div style="margin-top: 24px; padding: 16px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 12px; color: #64748b; line-height: 1.5;">
+        <strong style="color: #0f172a;">Track Real-Time Settlement:</strong> You can monitor live clearance updates and download certified institutional Proof of Payment directly from your digital banking dashboard.
+      </div>
+    `;
+
+    return {
+      subject,
+      html: this.getBaseEmailTemplate(headline, content),
+    };
+  }
+
+  /**
    * Core mail sender with direct Resend REST API support + Nodemailer SMTP fallback
    */
 
-  private async sendMail(to: string, subject: string, html: string) {
+  private async sendMail(
+    to: string,
+    subject: string,
+    html: string,
+    meta?: {
+      templateType?: string;
+      userId?: string;
+      reference?: string;
+      recipientName?: string;
+      payload?: any;
+    },
+  ) {
     const from =
       this.configService.get<string>('EMAIL_FROM') ||
       this.configService.get<string>('SMTP_FROM') ||
       process.env.EMAIL_FROM ||
       process.env.SMTP_FROM ||
       'Silverhawk Bank <onboarding@resend.dev>';
+
+    let dispatchStatus = 'SENT';
+    let errorMessage: string | undefined;
 
     // 1. Try Resend Direct REST API if RESEND_API_KEY is available
     if (this.resendApiKey && (this.resendApiKey.startsWith('re_') || this.resendApiKey.length > 20)) {
@@ -515,13 +775,17 @@ export class EmailService {
         if (response.ok) {
           const resJson = await response.json();
           this.logger.log(`📧 [Resend API] Email delivered to [${to}] | Subject: "${subject}" | Id: ${resJson.id}`);
+          dispatchStatus = 'SENT_RESEND_API';
+          await this.recordEmailLog(to, subject, dispatchStatus, meta);
           return { status: 'SENT_RESEND_API', id: resJson.id, to, subject };
         } else {
           const errBody = await response.text();
           this.logger.warn(`⚠️ [Resend API Error]: ${errBody}. Falling back to SMTP...`);
+          errorMessage = errBody;
         }
       } catch (apiErr: any) {
         this.logger.warn(`⚠️ [Resend API Exception]: ${apiErr.message}. Falling back to SMTP...`);
+        errorMessage = apiErr.message;
       }
     }
 
@@ -534,10 +798,74 @@ export class EmailService {
         html,
       });
       this.logger.log(`📧 [SMTP] Email sent to [${to}] | Subject: "${subject}" | MessageId: ${info.messageId}`);
+      dispatchStatus = 'SENT_SMTP';
+      await this.recordEmailLog(to, subject, dispatchStatus, meta);
       return info;
     } catch (error: any) {
       this.logger.warn(`⚠️ [Email Fallback Simulation]: Unable to dispatch email to ${to}: ${error.message}`);
+      dispatchStatus = 'SIMULATED_LOGGED';
+      errorMessage = error.message;
+      await this.recordEmailLog(to, subject, dispatchStatus, meta, errorMessage);
       return { status: 'SIMULATED_LOGGED', to, subject };
     }
+  }
+
+  private async recordEmailLog(
+    to: string,
+    subject: string,
+    status: string,
+    meta?: {
+      templateType?: string;
+      userId?: string;
+      reference?: string;
+      recipientName?: string;
+      payload?: any;
+    },
+    errorMessage?: string,
+  ) {
+    if (!this.prisma) return;
+    try {
+      await this.prisma.emailLog.create({
+        data: {
+          recipientEmail: to,
+          recipientName: meta?.recipientName || null,
+          subject,
+          templateType: meta?.templateType || 'TRANSACTIONAL',
+          status,
+          transactionReference: meta?.reference || null,
+          userId: meta?.userId || null,
+          payload: meta?.payload ? (typeof meta.payload === 'object' ? meta.payload : { data: meta.payload }) : undefined,
+          errorMessage: errorMessage || null,
+          sentAt: new Date(),
+        },
+      });
+    } catch (dbErr: any) {
+      this.logger.warn(`Could not persist EmailLog record: ${dbErr.message}`);
+    }
+  }
+
+  /**
+   * Retrieve audit list of logged email events from database
+   */
+  public async getEmailLogs(params?: { userId?: string; reference?: string; limit?: number }) {
+    if (!this.prisma) return [];
+    return this.prisma.emailLog.findMany({
+      where: {
+        ...(params?.userId ? { userId: params.userId } : {}),
+        ...(params?.reference ? { transactionReference: params.reference } : {}),
+      },
+      orderBy: { sentAt: 'desc' },
+      take: params?.limit || 50,
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            profile: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+    });
   }
 }

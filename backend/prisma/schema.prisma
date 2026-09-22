@@ -303,6 +303,7 @@ model User {
   fixedDeposits      FixedDeposit[]
   cards              Card[]
   notifications      Notification[]
+  emailLogs          EmailLog[]
   supportTickets     SupportTicket[]
   supportMessages    SupportMessage[]
   auditLogs          AuditLog[]
@@ -1123,6 +1124,28 @@ model Notification {
 
   @@index([userId, isRead])
   @@map("notifications")
+}
+
+model EmailLog {
+  id                   String   @id @default(uuid()) @db.VarChar(36)
+  userId               String?  @map("user_id") @db.VarChar(36)
+  recipientEmail       String   @map("recipient_email") @db.VarChar(255)
+  recipientName        String?  @map("recipient_name") @db.VarChar(255)
+  subject              String   @db.VarChar(500)
+  templateType         String   @map("template_type") @db.VarChar(64)
+  status               String   @default("SENT") @db.VarChar(32)
+  transactionReference String?  @map("transaction_reference") @db.VarChar(64)
+  payload              Json?
+  errorMessage         String?  @map("error_message") @db.Text
+  sentAt               DateTime @default(now()) @map("sent_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([recipientEmail, sentAt])
+  @@index([userId, sentAt])
+  @@index([transactionReference])
+  @@map("email_logs")
 }
 
 model SupportTicket {

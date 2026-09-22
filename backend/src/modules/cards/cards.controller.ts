@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import { CardsService } from './cards.service';
 import {
+  AdminApproveCardDto,
+  AdminRejectCardDto,
   BlockCardDto,
   IssueCardDto,
   RevealCardDto,
@@ -57,6 +59,32 @@ export class CardsController {
     @Query('brand') brand?: CardBrand,
   ) {
     return this.cardsService.adminListCards({ status, cardType, brand });
+  }
+
+  /**
+   * Admin: Approve pending card application
+   */
+  @Post('admin/:id/approve')
+  @RequirePermissions('cards.update')
+  async adminApproveCard(
+    @Param('id') cardId: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: AdminApproveCardDto,
+  ) {
+    return this.cardsService.adminApproveCard(cardId, adminId, dto.notes);
+  }
+
+  /**
+   * Admin: Reject pending card application
+   */
+  @Post('admin/:id/reject')
+  @RequirePermissions('cards.update')
+  async adminRejectCard(
+    @Param('id') cardId: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: AdminRejectCardDto,
+  ) {
+    return this.cardsService.adminRejectCard(cardId, adminId, dto.reason);
   }
 
   /**

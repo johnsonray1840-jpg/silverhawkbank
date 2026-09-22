@@ -405,6 +405,33 @@
       });
     },
 
+    async pendTransaction(id, reason) {
+      return await this.request(`/admin/transactions/${id}/pend`, {
+        method: 'POST',
+        body: { reason },
+      });
+    },
+
+    async setTransactionUnderReview(id, reason) {
+      return await this.request(`/admin/transactions/${id}/under-review`, {
+        method: 'POST',
+        body: { reason },
+      });
+    },
+
+    async updateTransaction(id, data) {
+      return await this.request(`/admin/transactions/${id}`, {
+        method: 'PATCH',
+        body: data,
+      });
+    },
+
+    async deleteTransaction(id) {
+      return await this.request(`/admin/transactions/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
     async reverseTransaction(id) {
       return await this.request(`/admin/transactions/${id}/reverse`, {
         method: 'POST',

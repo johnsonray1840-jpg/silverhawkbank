@@ -10,8 +10,8 @@ import { CardBrand, CardType, CardStatus } from '@prisma/client';
 
 export class IssueCardDto {
   @IsString()
-  @IsNotEmpty()
-  accountId: string;
+  @IsOptional()
+  accountId?: string;
 
   @IsEnum(CardType)
   @IsNotEmpty()
@@ -81,4 +81,20 @@ export class SimulateCardTransactionDto {
   @IsString()
   @IsOptional()
   merchantCountry?: string;
+
+  @IsString()
+  @IsOptional()
+  mccCode?: string;
+}
+
+export class AdminApproveCardDto {
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}
+
+export class AdminRejectCardDto {
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }

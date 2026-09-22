@@ -53,6 +53,7 @@ import {
   UpdateMasterSettingsDto,
   UpdateRolePermissionsDto,
   UpdateSystemSettingDto,
+  UpdateTransactionAdminDto,
   UpdateUserAdminDto,
 } from './dto/admin.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -404,6 +405,45 @@ export class AdminController {
     @CurrentUser('id') adminId: string,
   ) {
     return this.adminService.rejectTransaction(id, reason || 'Transaction declined by compliance desk', adminId);
+  }
+
+  @Post('transactions/:id/pend')
+  @ApiOperation({ summary: 'Set transaction to pending state' })
+  async setTransactionPending(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.adminService.setTransactionPending(id, reason || 'Transaction placed on pending status by administrator', adminId);
+  }
+
+  @Post('transactions/:id/under-review')
+  @ApiOperation({ summary: 'Flag and place transaction under compliance review' })
+  async setTransactionUnderReview(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.adminService.setTransactionUnderReview(id, reason || 'Placed under compliance review', adminId);
+  }
+
+  @Patch('transactions/:id')
+  @ApiOperation({ summary: 'Update transaction parameters, status, metadata and internal notes' })
+  async updateTransaction(
+    @Param('id') id: string,
+    @Body() dto: UpdateTransactionAdminDto,
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.adminService.updateTransaction(id, dto, adminId);
+  }
+
+  @Delete('transactions/:id')
+  @ApiOperation({ summary: 'Delete transaction and audit trail record' })
+  async deleteTransaction(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.adminService.deleteTransaction(id, adminId);
   }
 
   @Post('transactions/:id/reverse')

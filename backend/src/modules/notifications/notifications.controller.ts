@@ -15,6 +15,7 @@ import { RequirePermissions } from '../../common/decorators/require-permissions.
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { EmailService } from '../email/email.service';
 
 class BroadcastNotificationDto {
   @IsString()
@@ -37,7 +38,48 @@ class BroadcastNotificationDto {
 @Controller('notifications')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly emailService: EmailService,
+  ) {}
+
+  /**
+   * Preview simulated transactional email template
+   */
+  @Get('email-templates/preview')
+  async previewEmailTemplate(
+    @CurrentUser('id') userId: string,
+    @Query('type') type: string = 'CONFIRMATION',
+    @Query('amount') amount: string = '5000.00',
+    @Query('currency') currency: string = 'USD',
+    @Query('fee') fee: string = '15.00',
+    @Query('recipient') recipient: string = 'Apex Global Clearing LLC',
+    @Query('bank') bank: string = 'JPMorgan Chase Bank, N.A.',
+    @Query('account') account: string = 'US89CHAS1234567890',
+    @Query('reference') reference: string = 'TRF-DEMO-882201',
+    @Query('reason') reason?: string,
+  ) {
+    const rendered = this.emailService.getRenderedTransferEmail(type.toUpperCase(), {
+      senderName: 'Account Holder',
+      recipientName: recipient,
+      counterpartyName: recipient,
+      counterpartyBank: bank,
+      counterpartyAccount: account,
+      amount,
+      fee,
+      currency,
+      netAmount: (parseFloat(amount) - parseFloat(fee)).toFixed(2),
+      reference,
+      reason: reason || (type.toUpperCase() === 'REQUIRES_REVIEW' ? 'Flagged for source of funds and OFAC screening' : undefined),
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      type: type.toUpperCase(),
+      subject: rendered.subject,
+      html: rendered.html,
+    };
+  }
 
   /**
    * Get unread notification badge count

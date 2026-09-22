@@ -200,4 +200,206 @@ export class NotificationsService {
 
     return { message: 'Notification deleted successfully' };
   }
+
+  /**
+   * Helper to format transfer notification payload & dispatch multi-channel
+   */
+  private async buildTransferEmailPayload(userId: string, tx: any, reason?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+    const senderName = user?.profile ? `${user.profile.firstName} ${user.profile.lastName}`.trim() : user?.username || 'Valued Client';
+    const metadata = (tx.metadata as any) || {};
+    const amt = parseFloat(tx.amount?.toString() || '0');
+    const currency = tx.currencyCode || 'USD';
+    const beneficiary = metadata.counterpartyName || metadata.recipientName || tx.destinationAccount?.accountName || 'Beneficiary';
+    const bank = metadata.counterpartyBank || metadata.bankName || 'Beneficiary Institution';
+    const account = metadata.counterpartyAccount || metadata.recipientAccount || tx.destinationAccount?.accountNumber || 'N/A';
+    const ref = tx.reference || 'TRF-ORDER';
+
+    return {
+      to: user?.email || 'customer@silverhawkbank.com',
+      senderName,
+      recipientName: beneficiary,
+      amount: amt.toFixed(2),
+      fee: parseFloat(tx.fee?.toString() || '0').toFixed(2),
+      currency,
+      netAmount: parseFloat(tx.netAmount?.toString() || amt.toString()).toFixed(2),
+      reference: ref,
+      accountNumber: tx.sourceAccount?.accountNumber || 'Primary Account',
+      counterpartyName: beneficiary,
+      counterpartyBank: bank,
+      counterpartyAccount: account,
+      routingNumber: metadata.routingNumber || metadata.swiftBic,
+      swiftBic: metadata.swiftBic,
+      rail: metadata.rail || tx.type,
+      purpose: metadata.purpose || tx.description,
+      reason,
+      status: tx.status,
+      timestamp: tx.createdAt ? new Date(tx.createdAt).toISOString() : new Date().toISOString(),
+    };
+  }
+
+  /**
+   * 1. Dispatch Transfer Submitted
+   */
+  async dispatchTransferSubmitted(userId: string, tx: any) {
+    const payload = await this.buildTransferEmailPayload(userId, tx);
+    const amtFormatted = `${payload.currency} ${parseFloat(payload.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+    const notif = await this.prisma.notification.create({
+      data: {
+        userId,
+        title: `Wire Order Submitted — ${payload.reference}`,
+        message: `Your wire transfer of ${amtFormatted} to ${payload.counterpartyName} (${payload.counterpartyBank}) has been submitted and queued for clearing.`,
+        type: 'TRANSFER_SUBMITTED',
+        linkUrl: `/dashboard.html#tx-${payload.reference}`,
+        isRead: false,
+      },
+    });
+
+    try {
+      await this.emailService.sendTransferConfirmationEmail(payload);
+    } catch (e: any) {
+      this.logger.warn(`Email send error on transfer submitted: ${e.message}`);
+    }
+
+    return notif;
+  }
+
+  /**
+   * 2. Dispatch Transfer Processing
+   */
+  async dispatchTransferProcessing(userId: string, tx: any) {
+    const payload = await this.buildTransferEmailPayload(userId, tx);
+    const amtFormatted = `${payload.currency} ${parseFloat(payload.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+    const notif = await this.prisma.notification.create({
+      data: {
+        userId,
+        title: `Transfer Clearing in Progress — ${payload.reference}`,
+        message: `Clearing and automated AML screening in progress for wire transfer of ${amtFormatted} to ${payload.counterpartyName}.`,
+        type: 'TRANSFER_PROCESSING',
+        linkUrl: `/dashboard.html#tx-${payload.reference}`,
+        isRead: false,
+      },
+    });
+
+    try {
+      await this.emailService.sendTransferProcessingEmail(payload);
+    } catch (e: any) {
+      this.logger.warn(`Email send error on transfer processing: ${e.message}`);
+    }
+
+    return notif;
+  }
+
+  /**
+   * 3. Dispatch Transfer Requires Review
+   */
+  async dispatchTransferRequiresReview(userId: string, tx: any, reason?: string) {
+    const payload = await this.buildTransferEmailPayload(userId, tx, reason);
+    const amtFormatted = `${payload.currency} ${parseFloat(payload.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+    const notif = await this.prisma.notification.create({
+      data: {
+        userId,
+        title: `Action Required: Wire Under Review — ${payload.reference}`,
+        message: `Your transfer of ${amtFormatted} to ${payload.counterpartyName} has been flagged for institutional compliance review${reason ? `: ${reason}` : ''}. No action required.`,
+        type: 'TRANSFER_REQUIRES_REVIEW',
+        linkUrl: `/dashboard.html#tx-${payload.reference}`,
+        isRead: false,
+      },
+    });
+
+    try {
+      await this.emailService.sendTransferReviewEmail(payload);
+    } catch (e: any) {
+      this.logger.warn(`Email send error on transfer review: ${e.message}`);
+    }
+
+    return notif;
+  }
+
+  /**
+   * 4. Dispatch Transfer Completed
+   */
+  async dispatchTransferCompleted(userId: string, tx: any) {
+    const payload = await this.buildTransferEmailPayload(userId, tx);
+    const amtFormatted = `${payload.currency} ${parseFloat(payload.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+    const notif = await this.prisma.notification.create({
+      data: {
+        userId,
+        title: `Wire Transfer Settled & Delivered — ${payload.reference}`,
+        message: `Transfer of ${amtFormatted} to ${payload.counterpartyName} (${payload.counterpartyBank}) has been finalized and settled successfully.`,
+        type: 'TRANSFER_COMPLETED',
+        linkUrl: `/dashboard.html#tx-${payload.reference}`,
+        isRead: false,
+      },
+    });
+
+    try {
+      await this.emailService.sendTransferCompletedEmail(payload);
+    } catch (e: any) {
+      this.logger.warn(`Email send error on transfer completed: ${e.message}`);
+    }
+
+    return notif;
+  }
+
+  /**
+   * 5. Dispatch Transfer Failed
+   */
+  async dispatchTransferFailed(userId: string, tx: any, reason?: string) {
+    const payload = await this.buildTransferEmailPayload(userId, tx, reason);
+    const amtFormatted = `${payload.currency} ${parseFloat(payload.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+    const notif = await this.prisma.notification.create({
+      data: {
+        userId,
+        title: `Transfer Failed / Declined — ${payload.reference}`,
+        message: `Wire transfer of ${amtFormatted} to ${payload.counterpartyName} could not be processed${reason ? `: ${reason}` : ''}. Deducted funds have been refunded.`,
+        type: 'TRANSFER_FAILED',
+        linkUrl: `/dashboard.html#tx-${payload.reference}`,
+        isRead: false,
+      },
+    });
+
+    try {
+      await this.emailService.sendTransferFailedEmail(payload);
+    } catch (e: any) {
+      this.logger.warn(`Email send error on transfer failed: ${e.message}`);
+    }
+
+    return notif;
+  }
+
+  /**
+   * 6. Dispatch Transfer Cancelled
+   */
+  async dispatchTransferCancelled(userId: string, tx: any, reason?: string) {
+    const payload = await this.buildTransferEmailPayload(userId, tx, reason);
+    const amtFormatted = `${payload.currency} ${parseFloat(payload.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+    const notif = await this.prisma.notification.create({
+      data: {
+        userId,
+        title: `Transfer Order Cancelled — ${payload.reference}`,
+        message: `Transfer of ${amtFormatted} to ${payload.counterpartyName} has been cancelled${reason ? `: ${reason}` : ''}.`,
+        type: 'TRANSFER_CANCELLED',
+        linkUrl: `/dashboard.html#tx-${payload.reference}`,
+        isRead: false,
+      },
+    });
+
+    try {
+      await this.emailService.sendTransferCancelledEmail(payload);
+    } catch (e: any) {
+      this.logger.warn(`Email send error on transfer cancelled: ${e.message}`);
+    }
+
+    return notif;
+  }
 }

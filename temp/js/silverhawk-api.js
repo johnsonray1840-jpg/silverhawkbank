@@ -124,7 +124,7 @@
       return !!this.getAccessToken();
     }
 
-    // Generic HTTP Request Wrapper with 401 Auto-Refresh
+    // Generic HTTP Request Wrapper with Timeout, 401 Auto-Refresh, and Edge-Case Mapping
     async request(endpoint, options = {}) {
       const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
       const headers = {
@@ -137,9 +137,15 @@
         headers['Authorization'] = `Bearer ${token}`;
       }
 
+      // 1. Setup Timeout Controller (default 20s)
+      const timeoutMs = options.timeoutMs || 20000;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
       const config = {
         ...options,
         headers,
+        signal: controller.signal,
       };
 
       if (config.body && typeof config.body === 'object' && !(config.body instanceof FormData)) {
@@ -147,9 +153,14 @@
       }
 
       try {
-        let response = await fetch(url, config);
+        let response;
+        try {
+          response = await fetch(url, config);
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
-        // If 401 and refresh token available, attempt refresh once
+        // 2. Handle 401 Unauthorized & Session Expiration with Token Refresh
         if (response.status === 401 && this.getRefreshToken() && !endpoint.includes('/auth/refresh')) {
           const refreshed = await this.refreshToken();
           if (refreshed) {
@@ -158,9 +169,13 @@
             response = await fetch(url, config);
           } else {
             this.clearAuth();
-            if (!window.location.pathname.includes('login') && !window.location.pathname.includes('register')) {
-              window.location.href = '/login.html';
+            if (typeof window.SilverhawkToast === 'function') {
+              window.SilverhawkToast('Your banking session has expired. Please sign in again.', 'error');
             }
+            if (!window.location.pathname.includes('login') && !window.location.pathname.includes('register')) {
+              setTimeout(() => { window.location.href = '/login.html'; }, 1200);
+            }
+            throw new Error('Session expired. Please sign in again.');
           }
         }
 
@@ -171,16 +186,39 @@
         }
 
         if (!response.ok) {
-          const errorMsg = data?.message || data?.error?.message || 'An error occurred during request';
-          throw new Error(Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg);
+          let errorMsg = data?.message || data?.error?.message;
+          if (Array.isArray(data?.validationErrors) && data.validationErrors.length > 0) {
+            errorMsg = data.validationErrors.join(', ');
+          } else if (Array.isArray(errorMsg)) {
+            errorMsg = errorMsg.join(', ');
+          }
+
+          if (!errorMsg) {
+            if (response.status === 400) errorMsg = 'Invalid request parameters. Please verify input fields.';
+            else if (response.status === 403) errorMsg = 'Unauthorized action: Access denied for this banking resource.';
+            else if (response.status === 404) errorMsg = 'The requested account, recipient, or record was not found.';
+            else if (response.status === 409) errorMsg = 'Duplicate transaction submission detected. Operation already in progress.';
+            else if (response.status === 429) errorMsg = 'Rate limit exceeded. Please wait a few seconds before retrying.';
+            else if (response.status >= 500) errorMsg = 'Banking clearing engine encountered a server exception. Incident tracked.';
+            else errorMsg = `Server returned HTTP status ${response.status}`;
+          }
+
+          const err = new Error(errorMsg);
+          err.status = response.status;
+          err.data = data;
+          throw err;
         }
 
         // Return unpacked envelope data or root object
         return data !== null && data.data !== undefined ? data.data : data;
       } catch (err) {
-        if (err.name === 'TypeError' && err.message.includes('fetch')) {
-          console.error(`[Silverhawk API Error] Unable to connect to backend server at ${this.baseUrl}.`);
-          throw new Error('Banking engine API is currently unreachable. Please ensure the backend server is running.');
+        if (err.name === 'AbortError') {
+          console.error(`[Silverhawk API Timeout] Request to ${endpoint} timed out after ${timeoutMs}ms.`);
+          throw new Error('Transaction request timed out. Please check your transaction history to verify if settlement completed.');
+        }
+        if (err.name === 'TypeError' && (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed to fetch'))) {
+          console.error(`[Silverhawk API Network Error] Unable to connect to backend server at ${this.baseUrl}.`);
+          throw new Error('Network connectivity error. Unable to reach the banking engine. Please check your connection.');
         }
         console.error(`[Silverhawk API Error] ${endpoint}:`, err);
         throw err;
@@ -712,6 +750,25 @@
       });
     }
 
+    async adminGetCards(query = {}) {
+      const qs = new URLSearchParams(query).toString();
+      return this.request(`/cards/admin/all${qs ? '?' + qs : ''}`);
+    }
+
+    async adminApproveCard(id, notes = '') {
+      return this.request(`/cards/admin/${id}/approve`, {
+        method: 'POST',
+        body: { notes },
+      });
+    }
+
+    async adminRejectCard(id, reason = '') {
+      return this.request(`/cards/admin/${id}/reject`, {
+        method: 'POST',
+        body: { reason },
+      });
+    }
+
     // ----------------------------------------------------
     // Notifications & Support
     // ----------------------------------------------------
@@ -726,6 +783,11 @@
 
     async markAllNotificationsRead() {
       return this.request('/notifications/read-all', { method: 'PATCH' });
+    }
+
+    async previewEmailTemplate(params = {}) {
+      const qs = new URLSearchParams(params).toString();
+      return this.request(`/notifications/email-templates/preview?${qs}`);
     }
 
     async createSupportTicket(data) {
@@ -1185,25 +1247,57 @@
     }
   }
 
-  // Toast / Alert Helper
+  // Premium SaaS Toast / Notification Helper
   function showToast(message, type = 'info') {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `fixed bottom-5 right-5 z-50 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-semibold transition-all duration-300 transform translate-y-0 opacity-100 flex items-center space-x-3 backdrop-blur-md ${
-      type === 'error'
-        ? 'bg-red-600/95 text-white border border-red-500'
-        : type === 'success'
-        ? 'bg-emerald-600/95 text-white border border-emerald-500'
-        : 'bg-sky-600/95 text-white border border-sky-500'
-    }`;
+    let container = document.getElementById('silverhawk-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'silverhawk-toast-container';
+      container.className = 'fixed top-5 right-5 z-[9999] flex flex-col space-y-2.5 pointer-events-none max-w-sm w-full px-3';
+      document.body.appendChild(container);
+    }
 
-    const icon = type === 'error' ? 'fa-exclamation-triangle' : type === 'success' ? 'fa-check-circle' : 'fa-info-circle';
-    alertDiv.innerHTML = `<i class="fas ${icon} text-base"></i> <span>${message}</span>`;
-    document.body.appendChild(alertDiv);
+    const toast = document.createElement('div');
+    toast.className = 'pointer-events-auto flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-slate-950/95 dark:bg-slate-900/95 text-slate-100 border border-slate-800/80 shadow-2xl shadow-black/60 backdrop-blur-lg transform transition-all duration-300 translate-y-[-10px] opacity-0 text-xs font-semibold space-x-3';
 
+    let iconBg = 'bg-sky-500/20 text-sky-400 border border-sky-500/30';
+    let iconClass = 'fa-info-circle';
+    if (type === 'success') {
+      iconBg = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      iconClass = 'fa-check-circle';
+    } else if (type === 'error') {
+      iconBg = 'bg-rose-500/20 text-rose-400 border border-rose-500/30';
+      iconClass = 'fa-circle-xmark';
+    } else if (type === 'warning') {
+      iconBg = 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+      iconClass = 'fa-triangle-exclamation';
+    }
+
+    toast.innerHTML = `
+      <div class="flex items-center space-x-3 min-w-0">
+        <div class="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}">
+          <i class="fas ${iconClass} text-xs"></i>
+        </div>
+        <div class="text-slate-200 leading-snug break-words">${message}</div>
+      </div>
+      <button type="button" class="text-slate-500 hover:text-slate-300 transition-colors p-1 -mr-1 flex-shrink-0" onclick="this.parentElement.remove()">
+        <i class="fas fa-times text-[10px]"></i>
+      </button>
+    `;
+
+    container.appendChild(toast);
+
+    // Trigger enter transition
+    requestAnimationFrame(() => {
+      toast.classList.remove('translate-y-[-10px]', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+    });
+
+    // Auto dismiss after 4.5s
     setTimeout(() => {
-      alertDiv.style.opacity = '0';
-      alertDiv.style.transform = 'translateY(20px)';
-      setTimeout(() => alertDiv.remove(), 400);
+      toast.classList.remove('translate-y-0', 'opacity-100');
+      toast.classList.add('translate-y-[-10px]', 'opacity-0');
+      setTimeout(() => toast.remove(), 350);
     }, 4500);
   }
 

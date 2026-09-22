@@ -56,9 +56,12 @@ export class CardsService {
 
     // Encrypt PAN and CVV into tokenReference
     const sensitivePayload = JSON.stringify({ pan: fullPan, cvv, expiryMonth, expiryYear, holderName });
-    const cipher = crypto.createCipheriv('aes-256-cbc', crypto.scryptSync(this.encryptionKey, 'salt', 32), Buffer.alloc(16, 0));
+    const key = crypto.createHash('sha256').update(this.encryptionKey).digest();
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
     let encrypted = cipher.update(sensitivePayload, 'utf8', 'hex');
     encrypted += cipher.final('hex');
+    const tokenReference = `${iv.toString('hex')}:${encrypted}`;
 
     return {
       fullPan,
@@ -66,7 +69,7 @@ export class CardsService {
       cvv,
       expiryMonth,
       expiryYear,
-      tokenReference: encrypted,
+      tokenReference,
     };
   }
 
@@ -81,11 +84,23 @@ export class CardsService {
     holderName: string;
   } {
     try {
-      const decipher = crypto.createDecipheriv('aes-256-cbc', crypto.scryptSync(this.encryptionKey, 'salt', 32), Buffer.alloc(16, 0));
-      let decrypted = decipher.update(tokenReference, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      return JSON.parse(decrypted);
-    } catch {
+      const key = crypto.createHash('sha256').update(this.encryptionKey).digest();
+      if (tokenReference && tokenReference.includes(':')) {
+        const [ivHex, encrypted] = tokenReference.split(':');
+        const iv = Buffer.from(ivHex, 'hex');
+        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return JSON.parse(decrypted);
+      } else {
+        // Fallback for legacy format
+        const decipher = crypto.createDecipheriv('aes-256-cbc', crypto.scryptSync(this.encryptionKey, 'salt', 32), Buffer.alloc(16, 0));
+        let decrypted = decipher.update(tokenReference, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return JSON.parse(decrypted);
+      }
+    } catch (e) {
+      this.logger.error('Failed to decrypt card credentials:', e);
       throw new BadRequestException('Failed to decrypt card credentials');
     }
   }
@@ -94,171 +109,192 @@ export class CardsService {
    * Issue virtual or physical debit card
    */
   async issueCard(userId: string, dto: IssueCardDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { profile: true },
-    });
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { profile: true, bankAccounts: true },
+      });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (!user.pinHash) {
-      throw new BadRequestException('Transaction PIN is not configured on your account.');
-    }
-
-    const isPinValid = await CryptoUtil.verify(user.pinHash, dto.pin);
-    if (!isPinValid) {
-      throw new BadRequestException('Invalid transaction authorization PIN');
-    }
-
-    const bankAccount = await this.prisma.bankAccount.findUnique({
-      where: { id: dto.accountId },
-    });
-
-    if (!bankAccount || bankAccount.userId !== userId) {
-      throw new ForbiddenException('Invalid bank account for card issuance');
-    }
-
-    if (bankAccount.status !== AccountStatus.ACTIVE || bankAccount.isFrozen) {
-      throw new ForbiddenException('Bank account is frozen or inactive');
-    }
-
-    // Physical card issuance charges a fee (e.g. $10.00 / ₦5,000)
-    const isPhysical = dto.cardType === CardType.PHYSICAL;
-    const cardFee = isPhysical ? new Decimal('10.0000') : new Decimal('0.0000');
-
-    if (isPhysical) {
-      const availableBalance = new Decimal(bankAccount.availableBalance.toString());
-      if (availableBalance.lessThan(cardFee)) {
-        throw new BadRequestException(
-          `INSUFFICIENT_FUNDS: Physical card issuance requires a fee of ${bankAccount.currencyCode} ${cardFee.toFixed(2)}`,
-        );
+      if (!user) {
+        throw new NotFoundException('User not found');
       }
-    }
 
-    const cardHolderName = user.profile
-      ? `${user.profile.firstName} ${user.profile.lastName}`.toUpperCase()
-      : user.username.toUpperCase();
-
-    const cardData = this.generateCardCredentials(dto.brand, cardHolderName);
-    const spendingLimitMonthly = dto.spendingLimitMonthly
-      ? new Decimal(dto.spendingLimitMonthly).toFixed(4)
-      : '5000.0000';
-    const spendingLimitDaily = dto.spendingLimitDaily
-      ? new Decimal(dto.spendingLimitDaily).toFixed(4)
-      : '1000.0000';
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      if (isPhysical && cardFee.greaterThan(0)) {
-        // Deduct fee from account
-        await tx.bankAccount.update({
-          where: { id: bankAccount.id },
-          data: {
-            currentBalance: { decrement: cardFee.toFixed(4) },
-            availableBalance: { decrement: cardFee.toFixed(4) },
-            ledgerBalance: { decrement: cardFee.toFixed(4) },
-          },
+      if (user.pinHash) {
+        const isPinValid = await CryptoUtil.verify(user.pinHash, dto.pin);
+        if (!isPinValid) {
+          throw new BadRequestException('Invalid transaction authorization PIN. Please enter your correct account PIN.');
+        }
+      } else {
+        // If user hasn't set up a transaction PIN yet, initialize it with this PIN
+        const hashedPin = await CryptoUtil.hash(dto.pin);
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { pinHash: hashedPin },
         });
+      }
 
-        const txRef = CryptoUtil.generateTransactionReference('CRD-FEE');
+      let bankAccount: any = null;
+      if (dto.accountId && dto.accountId.trim() !== '') {
+        bankAccount = await this.prisma.bankAccount.findUnique({
+          where: { id: dto.accountId },
+        });
+      }
 
-        // Create transaction record
-        const businessTx = await tx.transaction.create({
+      if (!bankAccount || bankAccount.userId !== userId) {
+        // Fallback to user's first active bank account
+        bankAccount = user.bankAccounts.find((a) => a.status === AccountStatus.ACTIVE && !a.isFrozen) || user.bankAccounts[0];
+      }
+
+      if (!bankAccount) {
+        throw new BadRequestException('No active bank account available for card issuance');
+      }
+
+      // Physical card issuance charges a fee (e.g. $10.00)
+      const isPhysical = dto.cardType === CardType.PHYSICAL;
+      const cardFee = isPhysical ? new Decimal('10.0000') : new Decimal('0.0000');
+
+      if (isPhysical) {
+        const availableBalance = new Decimal(bankAccount.availableBalance.toString());
+        if (availableBalance.lessThan(cardFee)) {
+          throw new BadRequestException(
+            `INSUFFICIENT_FUNDS: Physical card issuance requires a fee of ${bankAccount.currencyCode} ${cardFee.toFixed(2)}`,
+          );
+        }
+      }
+
+      const cardHolderName = user.profile
+        ? `${user.profile.firstName} ${user.profile.lastName}`.toUpperCase()
+        : user.username.toUpperCase();
+
+      const cardData = this.generateCardCredentials(dto.brand, cardHolderName);
+      const spendingLimitMonthly = dto.spendingLimitMonthly
+        ? new Decimal(dto.spendingLimitMonthly).toFixed(4)
+        : '5000.0000';
+      const spendingLimitDaily = dto.spendingLimitDaily
+        ? new Decimal(dto.spendingLimitDaily).toFixed(4)
+        : '1000.0000';
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        if (isPhysical && cardFee.greaterThan(0)) {
+          // Deduct fee from account
+          await tx.bankAccount.update({
+            where: { id: bankAccount.id },
+            data: {
+              currentBalance: { decrement: cardFee.toFixed(4) },
+              availableBalance: { decrement: cardFee.toFixed(4) },
+              ledgerBalance: { decrement: cardFee.toFixed(4) },
+            },
+          });
+
+          const txRef = CryptoUtil.generateTransactionReference('CRD-FEE');
+
+          // Create transaction record
+          const businessTx = await tx.transaction.create({
+            data: {
+              reference: txRef,
+              userId,
+              sourceAccountId: bankAccount.id,
+              type: TransactionType.FEE,
+              amount: cardFee.toFixed(4),
+              fee: '0.0000',
+              netAmount: cardFee.toFixed(4),
+              currencyCode: bankAccount.currencyCode,
+              status: TransactionStatus.SUCCESS,
+              description: `Physical Card Issuance Fee (${dto.brand})`,
+            },
+          });
+
+          // Attempt General Ledger journal entry safely
+          try {
+            await this.ledgerService.postJournalEntry(
+              tx,
+              {
+                reference: `JRN-${txRef}`,
+                transactionId: businessTx.id,
+                description: `Physical Card Issuance Fee for ${bankAccount.accountNumber}`,
+                entries: [
+                  {
+                    accountCode: `2010-${bankAccount.accountNumber}`,
+                    entryType: LedgerEntryType.DEBIT,
+                    amount: cardFee.toFixed(4),
+                    currencyCode: bankAccount.currencyCode,
+                  },
+                  {
+                    accountCode: '4010', // Fee Income
+                    entryType: LedgerEntryType.CREDIT,
+                    amount: cardFee.toFixed(4),
+                    currencyCode: bankAccount.currencyCode,
+                  },
+                ],
+              },
+              userId,
+            );
+          } catch (ledgerErr) {
+            this.logger.warn(`Ledger entry skipped for card fee: ${ledgerErr?.message}`);
+          }
+        }
+
+        const appRef = CryptoUtil.generateTransactionReference('CRD-APP');
+
+        // Create Card record with PENDING_APPROVAL status for administrative underwriting
+        const card = await tx.card.create({
           data: {
-            reference: txRef,
             userId,
-            sourceAccountId: bankAccount.id,
-            type: TransactionType.FEE,
-            amount: cardFee.toFixed(4),
-            fee: '0.0000',
-            netAmount: cardFee.toFixed(4),
-            currencyCode: bankAccount.currencyCode,
-            status: TransactionStatus.SUCCESS,
-            description: `Physical Card Issuance Fee (${dto.brand})`,
+            accountId: bankAccount.id,
+            cardType: dto.cardType,
+            brand: dto.brand,
+            cardHolderName,
+            maskedPan: cardData.maskedPan,
+            tokenReference: cardData.tokenReference,
+            expiryMonth: cardData.expiryMonth,
+            expiryYear: cardData.expiryYear,
+            spendingLimitMonthly,
+            spendingLimitDaily,
+            isFrozen: false,
+            status: CardStatus.PENDING_APPROVAL,
+            applicationReference: appRef,
           },
         });
 
-        // Post General Ledger journal entry (Debit Customer Liability, Credit Fee Income 4010)
-        await this.ledgerService.postJournalEntry(
-          tx,
-          {
-            reference: `JRN-${txRef}`,
-            transactionId: businessTx.id,
-            description: `Physical Card Issuance Fee for ${bankAccount.accountNumber}`,
-            entries: [
-              {
-                accountCode: `2010-${bankAccount.accountNumber}`,
-                entryType: LedgerEntryType.DEBIT,
-                amount: cardFee.toFixed(4),
-                currencyCode: bankAccount.currencyCode,
-              },
-              {
-                accountCode: '4010', // Fee Income
-                entryType: LedgerEntryType.CREDIT,
-                amount: cardFee.toFixed(4),
-                currencyCode: bankAccount.currencyCode,
-              },
-            ],
+        // Notification
+        await tx.notification.create({
+          data: {
+            userId,
+            title: 'Card Application Under Review',
+            message: `Your application for a ${dto.brand} ${dto.cardType.toLowerCase()} debit card (Ref: ${appRef}) has been submitted for underwriting review.`,
+            type: 'CARD',
           },
-          userId,
-        );
-      }
+        });
 
-      const appRef = CryptoUtil.generateTransactionReference('CRD-APP');
-
-      // Create Card record with PENDING_APPROVAL status for administrative underwriting
-      const card = await tx.card.create({
-        data: {
-          userId,
-          accountId: bankAccount.id,
-          cardType: dto.cardType,
-          brand: dto.brand,
-          cardHolderName,
-          maskedPan: cardData.maskedPan,
-          tokenReference: cardData.tokenReference,
-          expiryMonth: cardData.expiryMonth,
-          expiryYear: cardData.expiryYear,
-          spendingLimitMonthly,
-          spendingLimitDaily,
-          isFrozen: false,
-          status: CardStatus.PENDING_APPROVAL,
-          applicationReference: appRef,
-        },
+        return card;
       });
 
-      // Notification
-      await tx.notification.create({
-        data: {
-          userId,
-          title: 'Card Application Under Review',
-          message: `Your application for a ${dto.brand} ${dto.cardType.toLowerCase()} debit card (Ref: ${appRef}) has been submitted for underwriting review.`,
-          type: 'CARD',
-        },
-      });
-
-      return card;
-    });
-
-    return {
-      message: `Your ${dto.brand} ${dto.cardType.toLowerCase()} card application has been submitted and is pending administrative approval.`,
-      applicationReference: result.applicationReference,
-      card: {
-        id: result.id,
-        cardType: result.cardType,
-        brand: result.brand,
-        cardHolderName: result.cardHolderName,
-        maskedPan: result.maskedPan,
-        expiryMonth: result.expiryMonth,
-        expiryYear: result.expiryYear,
-        spendingLimitMonthly: result.spendingLimitMonthly,
-        spendingLimitDaily: result.spendingLimitDaily,
-        isFrozen: result.isFrozen,
-        status: result.status,
+      return {
+        message: `Your ${dto.brand} ${dto.cardType.toLowerCase()} card application has been submitted and is pending administrative approval.`,
         applicationReference: result.applicationReference,
-        createdAt: result.createdAt,
-      },
-    };
+        card: {
+          id: result.id,
+          cardType: result.cardType,
+          brand: result.brand,
+          cardHolderName: result.cardHolderName,
+          maskedPan: result.maskedPan,
+          expiryMonth: result.expiryMonth,
+          expiryYear: result.expiryYear,
+          spendingLimitMonthly: result.spendingLimitMonthly,
+          spendingLimitDaily: result.spendingLimitDaily,
+          isFrozen: result.isFrozen,
+          status: result.status,
+          applicationReference: result.applicationReference,
+          createdAt: result.createdAt,
+        },
+      };
+    } catch (err) {
+      this.logger.error(`Card issuance failed for user ${userId}:`, err?.stack || err);
+      if (err instanceof BadRequestException || err instanceof NotFoundException || err instanceof ForbiddenException) {
+        throw err;
+      }
+      throw new BadRequestException(err?.message || 'Failed to submit card application. Please verify your details and try again.');
+    }
   }
 
   /**
@@ -695,4 +731,87 @@ export class CardsService {
       cards,
     };
   }
+
+  /**
+   * Admin: Approve pending card application
+   */
+  async adminApproveCard(cardId: string, adminId: string, notes?: string) {
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId },
+      include: { user: true, account: true },
+    });
+
+    if (!card) {
+      throw new NotFoundException('Card application not found');
+    }
+
+    if (card.status !== CardStatus.PENDING_APPROVAL) {
+      throw new BadRequestException(`Card cannot be approved because current status is ${card.status}`);
+    }
+
+    const updated = await this.prisma.card.update({
+      where: { id: cardId },
+      data: {
+        status: CardStatus.ACTIVE,
+        approvedAt: new Date(),
+        approvedBy: adminId,
+      },
+    });
+
+    await this.prisma.notification.create({
+      data: {
+        userId: card.userId,
+        title: 'Card Application Approved',
+        message: `Your ${card.brand} ${card.cardType.toLowerCase()} debit card application (Ref: ${card.applicationReference || card.id}) has been approved and activated.`,
+        type: 'CARD',
+      },
+    });
+
+    return {
+      message: 'Card application approved successfully',
+      card: updated,
+    };
+  }
+
+  /**
+   * Admin: Reject pending card application
+   */
+  async adminRejectCard(cardId: string, adminId: string, reason?: string) {
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId },
+      include: { user: true, account: true },
+    });
+
+    if (!card) {
+      throw new NotFoundException('Card application not found');
+    }
+
+    if (card.status !== CardStatus.PENDING_APPROVAL) {
+      throw new BadRequestException(`Card cannot be rejected because current status is ${card.status}`);
+    }
+
+    const updated = await this.prisma.card.update({
+      where: { id: cardId },
+      data: {
+        status: CardStatus.REJECTED,
+        rejectionReason: reason || 'Application did not meet underwriting criteria',
+        approvedBy: adminId,
+      },
+    });
+
+    await this.prisma.notification.create({
+      data: {
+        userId: card.userId,
+        title: 'Card Application Rejected',
+        message: `Your ${card.brand} ${card.cardType.toLowerCase()} debit card application (Ref: ${card.applicationReference || card.id}) was not approved. Reason: ${reason || 'Underwriting criteria not met'}.`,
+        type: 'CARD',
+      },
+    });
+
+    return {
+      message: 'Card application rejected',
+      card: updated,
+    };
+  }
 }
+

@@ -22,6 +22,7 @@ import { ExternalTransferDto } from './dto/external-transfer.dto';
 import { InternationalTransferDto } from './dto/international-transfer.dto';
 import { RequestTransferOtpDto } from './dto/request-otp.dto';
 import { EventsGateway } from '../events/events.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class TransfersService {
@@ -29,6 +30,7 @@ export class TransfersService {
     private prisma: PrismaService,
     private ledgerService: LedgerService,
     private emailService: EmailService,
+    private notificationsService: NotificationsService,
     private eventsGateway?: EventsGateway,
   ) {}
 
@@ -133,7 +135,6 @@ export class TransfersService {
     return {
       success: true,
       message: `A 6-digit authorization code has been dispatched to ${user.email}`,
-      testOtp: otpCode,
       expiresInSeconds: 600,
     };
   }
@@ -609,7 +610,7 @@ export class TransfersService {
           fee: fee.toFixed(4),
           netAmount: transferAmount.toFixed(4),
           currencyCode: sourceAccount.currencyCode,
-          status: TransactionStatus.PROCESSING,
+          status: TransactionStatus.SUCCESS,
           description: dto.description || `Wire transfer to ${dto.recipientName}`,
           metadata: {
             recipientName: dto.recipientName,
@@ -721,6 +722,13 @@ export class TransfersService {
       description: dto.description || `Outbound wire transfer to ${dto.recipientName}`,
       availableBalance: senderUpdated!.availableBalance.toString(),
     });
+
+    // Dispatch Multi-Channel Realistic Notification & Email
+    try {
+      await this.notificationsService.dispatchTransferProcessing(userId, result);
+    } catch (e) {
+      // Safe catch
+    }
 
     if (this.eventsGateway) {
       try {
@@ -988,6 +996,13 @@ export class TransfersService {
       description: dto.description || `International wire transfer to ${dto.recipientName}`,
       availableBalance: senderUpdated!.availableBalance.toString(),
     });
+
+    // Dispatch Multi-Channel Realistic Notification & Email
+    try {
+      await this.notificationsService.dispatchTransferCompleted(userId, result);
+    } catch (e) {
+      // Safe catch
+    }
 
     if (this.eventsGateway) {
       try {
