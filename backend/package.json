@@ -19,7 +19,8 @@
     "prisma:studio": "prisma studio",
     "typecheck": "tsc --noEmit",
     "test": "ts-node test/test-suite.ts",
-    "simulate": "ts-node scripts/simulate-banking.ts"
+    "simulate": "ts-node scripts/simulate-banking.ts",
+    "create:admin": "ts-node scripts/create-admin.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
