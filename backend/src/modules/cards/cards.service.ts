@@ -269,6 +269,23 @@ export class CardsService {
         return card;
       });
 
+      // Dispatch Card Application Received confirmation email
+      try {
+        await this.emailService.sendCardApplicationReceived({
+          to: user.email,
+          recipientName: cardHolderName,
+          reference: result.applicationReference || 'CRD-APP',
+          cardType: dto.cardType,
+          brand: dto.brand,
+          monthlyLimit: spendingLimitMonthly,
+          dailyLimit: spendingLimitDaily,
+          accountNumber: bankAccount.accountNumber,
+          currency: bankAccount.currencyCode,
+        });
+      } catch (emailErr: any) {
+        this.logger.warn(`Could not dispatch card application email to ${user.email}: ${emailErr?.message}`);
+      }
+
       return {
         message: `Your ${dto.brand} ${dto.cardType.toLowerCase()} card application has been submitted and is pending administrative approval.`,
         applicationReference: result.applicationReference,
@@ -738,7 +755,7 @@ export class CardsService {
   async adminApproveCard(cardId: string, adminId: string, notes?: string) {
     const card = await this.prisma.card.findUnique({
       where: { id: cardId },
-      include: { user: true, account: true },
+      include: { user: { include: { profile: true } }, account: true },
     });
 
     if (!card) {
@@ -767,6 +784,29 @@ export class CardsService {
       },
     });
 
+    // Dispatch Card Approved Email
+    try {
+      const recipientName = card.user?.profile
+        ? `${card.user.profile.firstName} ${card.user.profile.lastName}`
+        : card.cardHolderName;
+      await this.emailService.sendCardApplicationApproved({
+        to: card.user.email,
+        recipientName,
+        reference: card.applicationReference || card.id,
+        cardType: card.cardType,
+        brand: card.brand,
+        maskedPan: card.maskedPan,
+        expiryMonth: card.expiryMonth,
+        expiryYear: card.expiryYear,
+        monthlyLimit: card.spendingLimitMonthly.toString(),
+        dailyLimit: card.spendingLimitDaily.toString(),
+        accountNumber: card.account?.accountNumber || '0000000000',
+        currency: card.account?.currencyCode || 'USD',
+      });
+    } catch (emailErr: any) {
+      this.logger.warn(`Could not dispatch card approved email to ${card.user?.email}: ${emailErr?.message}`);
+    }
+
     return {
       message: 'Card application approved successfully',
       card: updated,
@@ -779,7 +819,7 @@ export class CardsService {
   async adminRejectCard(cardId: string, adminId: string, reason?: string) {
     const card = await this.prisma.card.findUnique({
       where: { id: cardId },
-      include: { user: true, account: true },
+      include: { user: { include: { profile: true } }, account: true },
     });
 
     if (!card) {
@@ -807,6 +847,23 @@ export class CardsService {
         type: 'CARD',
       },
     });
+
+    // Dispatch Card Application Rejected Email
+    try {
+      const recipientName = card.user?.profile
+        ? `${card.user.profile.firstName} ${card.user.profile.lastName}`
+        : card.cardHolderName;
+      await this.emailService.sendCardApplicationRejected({
+        to: card.user.email,
+        recipientName,
+        reference: card.applicationReference || card.id,
+        cardType: card.cardType,
+        brand: card.brand,
+        reason,
+      });
+    } catch (emailErr: any) {
+      this.logger.warn(`Could not dispatch card rejected email to ${card.user?.email}: ${emailErr?.message}`);
+    }
 
     return {
       message: 'Card application rejected',

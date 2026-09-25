@@ -3106,7 +3106,7 @@ export class AdminService {
   async approveCard(id: string, adminId: string) {
     const card = await this.prisma.card.findUnique({
       where: { id },
-      include: { user: true, account: true },
+      include: { user: { include: { profile: true } }, account: true },
     });
     if (!card) throw new NotFoundException('Card application not found');
 
@@ -3133,6 +3133,29 @@ export class AdminService {
       },
     });
 
+    // Dispatch Card Approved Email
+    try {
+      const recipientName = card.user?.profile
+        ? `${card.user.profile.firstName} ${card.user.profile.lastName}`
+        : card.cardHolderName;
+      await this.emailService.sendCardApplicationApproved({
+        to: card.user.email,
+        recipientName,
+        reference: card.applicationReference || card.id,
+        cardType: card.cardType,
+        brand: card.brand,
+        maskedPan: card.maskedPan,
+        expiryMonth: card.expiryMonth,
+        expiryYear: card.expiryYear,
+        monthlyLimit: card.spendingLimitMonthly.toString(),
+        dailyLimit: card.spendingLimitDaily.toString(),
+        accountNumber: card.account?.accountNumber || '0000000000',
+        currency: card.account?.currencyCode || 'USD',
+      });
+    } catch (emailErr: any) {
+      console.warn(`Could not dispatch card approved email to ${card.user?.email}: ${emailErr?.message}`);
+    }
+
     await this.prisma.auditLog.create({
       data: {
         actorId: adminId,
@@ -3149,7 +3172,7 @@ export class AdminService {
   async rejectCard(id: string, dto: RejectCardDto, adminId: string) {
     const card = await this.prisma.card.findUnique({
       where: { id },
-      include: { user: true, account: true },
+      include: { user: { include: { profile: true } }, account: true },
     });
     if (!card) throw new NotFoundException('Card application not found');
 
@@ -3175,6 +3198,23 @@ export class AdminService {
         type: 'CARD',
       },
     });
+
+    // Dispatch Card Application Rejected Email
+    try {
+      const recipientName = card.user?.profile
+        ? `${card.user.profile.firstName} ${card.user.profile.lastName}`
+        : card.cardHolderName;
+      await this.emailService.sendCardApplicationRejected({
+        to: card.user.email,
+        recipientName,
+        reference: card.applicationReference || card.id,
+        cardType: card.cardType,
+        brand: card.brand,
+        reason,
+      });
+    } catch (emailErr: any) {
+      console.warn(`Could not dispatch card rejected email to ${card.user?.email}: ${emailErr?.message}`);
+    }
 
     await this.prisma.auditLog.create({
       data: {

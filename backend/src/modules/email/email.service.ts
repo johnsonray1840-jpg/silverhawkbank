@@ -89,6 +89,42 @@ export interface WireTransferEmailPayload {
   availableBalance?: string;
 }
 
+export interface CardApplicationReceivedPayload {
+  to: string;
+  recipientName: string;
+  reference: string;
+  cardType: string;
+  brand: string;
+  monthlyLimit: string;
+  dailyLimit: string;
+  accountNumber: string;
+  currency?: string;
+}
+
+export interface CardApplicationApprovedPayload {
+  to: string;
+  recipientName: string;
+  reference: string;
+  cardType: string;
+  brand: string;
+  maskedPan: string;
+  expiryMonth: number;
+  expiryYear: number;
+  monthlyLimit: string;
+  dailyLimit: string;
+  accountNumber: string;
+  currency?: string;
+}
+
+export interface CardApplicationRejectedPayload {
+  to: string;
+  recipientName: string;
+  reference: string;
+  cardType: string;
+  brand: string;
+  reason?: string;
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -730,9 +766,192 @@ export class EmailService {
   }
 
   /**
+   * Send Card Application Received Email (Underwriting in Progress)
+   */
+  async sendCardApplicationReceived(payload: CardApplicationReceivedPayload) {
+    const currency = payload.currency || 'USD';
+    const monthlyFormatted = `${currency} ${parseFloat(payload.monthlyLimit || '5000').toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    const dailyFormatted = `${currency} ${parseFloat(payload.dailyLimit || '1000').toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    const cardProduct = `${payload.brand} ${payload.cardType.toUpperCase()}`;
+
+    const content = `
+      <div style="text-align: center;">
+        <span class="badge-status badge-pending" style="background: #fef3c7; color: #b45309; padding: 6px 16px; border-radius: 9999px; font-weight: 800; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;">
+          ⏳ UNDERWRITING IN PROGRESS
+        </span>
+      </div>
+      <h2 style="font-size: 20px; color: #0f172a; text-align: center; margin-top: 16px;">Card Application Received</h2>
+      <p style="font-size: 15px; line-height: 1.6;">Hello <strong>${payload.recipientName}</strong>,</p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        We have received your application for a new <strong>${cardProduct} Debit Card</strong>. Your request has been queued for standard compliance and underwriting verification.
+      </p>
+
+      <table class="details-table">
+        <tr>
+          <td class="label">Application Reference</td>
+          <td class="value" style="font-family: monospace; color: #0284c7; font-weight: 800;">${payload.reference}</td>
+        </tr>
+        <tr>
+          <td class="label">Card Product</td>
+          <td class="value">${cardProduct}</td>
+        </tr>
+        <tr>
+          <td class="label">Linked Account</td>
+          <td class="value" style="font-family: monospace;">•••• ${payload.accountNumber.slice(-4)}</td>
+        </tr>
+        <tr>
+          <td class="label">Monthly Spending Limit</td>
+          <td class="value">${monthlyFormatted}</td>
+        </tr>
+        <tr>
+          <td class="label">Daily Spending Limit</td>
+          <td class="value">${dailyFormatted}</td>
+        </tr>
+        <tr>
+          <td class="label">Application Status</td>
+          <td class="value" style="color: #d97706; font-weight: 800;">PENDING APPROVAL</td>
+        </tr>
+      </table>
+
+      <div style="margin-top: 24px; padding: 16px; background: #fffbeb; border-radius: 12px; border: 1px solid #fde68a; font-size: 13px; color: #92400e; line-height: 1.5;">
+        <strong>Next Steps:</strong> Our card operations desk reviews applications within 24 business hours. You will receive an immediate notification as soon as your card is approved and provisioned.
+      </div>
+    `;
+
+    return this.sendMail(
+      payload.to,
+      `Card Application Received: ${cardProduct} [Ref: ${payload.reference}]`,
+      this.getBaseEmailTemplate('Card Application Submitted', content),
+      {
+        templateType: 'CARD_APPLICATION_RECEIVED',
+        recipientName: payload.recipientName,
+        reference: payload.reference,
+        payload,
+      },
+    );
+  }
+
+  /**
+   * Send Card Application Approved & Activated Email
+   */
+  async sendCardApplicationApproved(payload: CardApplicationApprovedPayload) {
+    const currency = payload.currency || 'USD';
+    const monthlyFormatted = `${currency} ${parseFloat(payload.monthlyLimit || '5000').toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    const dailyFormatted = `${currency} ${parseFloat(payload.dailyLimit || '1000').toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    const cardProduct = `${payload.brand} ${payload.cardType.toUpperCase()}`;
+    const expiry = `${String(payload.expiryMonth).padStart(2, '0')}/${String(payload.expiryYear).slice(-2)}`;
+
+    const content = `
+      <div style="text-align: center;">
+        <span class="badge-status badge-credit" style="background: #dcfce7; color: #15803d; padding: 6px 16px; border-radius: 9999px; font-weight: 800; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;">
+          🎉 CARD APPROVED &amp; ACTIVE
+        </span>
+      </div>
+      <h2 style="font-size: 20px; color: #0f172a; text-align: center; margin-top: 16px;">Your Card Has Been Issued!</h2>
+      <p style="font-size: 15px; line-height: 1.6;">Hello <strong>${payload.recipientName}</strong>,</p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        Congratulations! Your application for a <strong>${cardProduct} Debit Card</strong> has been approved by Card Operations. Your card is now active and ready for immediate use.
+      </p>
+
+      <table class="details-table">
+        <tr>
+          <td class="label">Card Number</td>
+          <td class="value" style="font-family: monospace; font-size: 14px; letter-spacing: 1px; color: #0f172a;">${payload.maskedPan}</td>
+        </tr>
+        <tr>
+          <td class="label">Card Type</td>
+          <td class="value">${cardProduct}</td>
+        </tr>
+        <tr>
+          <td class="label">Expiration Date</td>
+          <td class="value" style="font-family: monospace;">${expiry}</td>
+        </tr>
+        <tr>
+          <td class="label">Monthly Spending Limit</td>
+          <td class="value">${monthlyFormatted}</td>
+        </tr>
+        <tr>
+          <td class="label">Daily Spending Limit</td>
+          <td class="value">${dailyFormatted}</td>
+        </tr>
+        <tr>
+          <td class="label">Card Status</td>
+          <td class="value" style="color: #16a34a; font-weight: 800;">ACTIVE &amp; UNLOCKED</td>
+        </tr>
+      </table>
+
+      <div style="margin-top: 24px; padding: 16px; background: #f0fdf4; border-radius: 12px; border: 1px solid #bbf7d0; font-size: 13px; color: #166534; line-height: 1.5;">
+        <strong>How to Access:</strong> Log into your digital banking dashboard to reveal your 16-digit card number and CVV, manage spending controls, or freeze your card at any time.
+      </div>
+    `;
+
+    return this.sendMail(
+      payload.to,
+      `🎉 Your ${cardProduct} Debit Card is Active! [Ending in ${payload.maskedPan.slice(-4)}]`,
+      this.getBaseEmailTemplate('Card Approved & Activated', content),
+      {
+        templateType: 'CARD_APPLICATION_APPROVED',
+        recipientName: payload.recipientName,
+        reference: payload.reference,
+        payload,
+      },
+    );
+  }
+
+  /**
+   * Send Card Application Rejected Email
+   */
+  async sendCardApplicationRejected(payload: CardApplicationRejectedPayload) {
+    const cardProduct = `${payload.brand} ${payload.cardType.toUpperCase()}`;
+
+    const content = `
+      <div style="text-align: center;">
+        <span class="badge-status badge-debit" style="background: #fee2e2; color: #b91c1c; padding: 6px 16px; border-radius: 9999px; font-weight: 800; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;">
+          ⚠️ APPLICATION STATUS UPDATE
+        </span>
+      </div>
+      <h2 style="font-size: 20px; color: #0f172a; text-align: center; margin-top: 16px;">Card Application Not Approved</h2>
+      <p style="font-size: 15px; line-height: 1.6;">Hello <strong>${payload.recipientName}</strong>,</p>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        Thank you for applying for a <strong>${cardProduct} Debit Card</strong>. After careful review by our underwriting desk, we are unable to approve your application at this time.
+      </p>
+
+      <table class="details-table">
+        <tr>
+          <td class="label">Application Reference</td>
+          <td class="value" style="font-family: monospace; color: #0284c7;">${payload.reference}</td>
+        </tr>
+        <tr>
+          <td class="label">Card Product</td>
+          <td class="value">${cardProduct}</td>
+        </tr>
+        <tr>
+          <td class="label">Underwriting Reason</td>
+          <td class="value" style="color: #dc2626;">${payload.reason || 'Did not meet current compliance underwriting standards.'}</td>
+        </tr>
+      </table>
+
+      <div style="margin-top: 24px; padding: 16px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 13px; color: #64748b; line-height: 1.5;">
+        If you have questions regarding this decision or wish to provide updated verification documents, please contact our support team at <a href="mailto:support@silverhawkbank.com" style="color: #0284c7; font-weight: 600;">support@silverhawkbank.com</a>.
+      </div>
+    `;
+
+    return this.sendMail(
+      payload.to,
+      `Card Application Status: ${cardProduct} [Ref: ${payload.reference}]`,
+      this.getBaseEmailTemplate('Card Application Notice', content),
+      {
+        templateType: 'CARD_APPLICATION_REJECTED',
+        recipientName: payload.recipientName,
+        reference: payload.reference,
+        payload,
+      },
+    );
+  }
+
+  /**
    * Core mail sender with direct Resend REST API support + Nodemailer SMTP fallback
    */
-
   private async sendMail(
     to: string,
     subject: string,
