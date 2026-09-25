@@ -54,8 +54,8 @@ export class CardsService {
     const expiryMonth = now.getMonth() + 1;
     const expiryYear = now.getFullYear() + 3;
 
-    // Encrypt PAN and CVV into tokenReference
-    const sensitivePayload = JSON.stringify({ pan: fullPan, cvv, expiryMonth, expiryYear, holderName });
+    // Compact sensitive payload: fullPan|cvv|expiryMonth|expiryYear (< 30 chars, < 97 chars encrypted)
+    const sensitivePayload = `${fullPan}|${cvv}|${expiryMonth}|${expiryYear}`;
     const key = crypto.createHash('sha256').update(this.encryptionKey).digest();
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
@@ -76,7 +76,7 @@ export class CardsService {
   /**
    * Decrypt tokenReference to retrieve raw card details
    */
-  private decryptCardCredentials(tokenReference: string): {
+  private decryptCardCredentials(tokenReference: string, fallbackHolderName: string = 'CARDHOLDER'): {
     pan: string;
     cvv: string;
     expiryMonth: number;
@@ -91,7 +91,19 @@ export class CardsService {
         const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
         let decrypted = decipher.update(encrypted, 'hex', 'utf8');
         decrypted += decipher.final('utf8');
-        return JSON.parse(decrypted);
+
+        if (decrypted.includes('|')) {
+          const [pan, cvv, expM, expY] = decrypted.split('|');
+          return {
+            pan,
+            cvv,
+            expiryMonth: parseInt(expM, 10),
+            expiryYear: parseInt(expY, 10),
+            holderName: fallbackHolderName,
+          };
+        } else {
+          return JSON.parse(decrypted);
+        }
       } else {
         // Fallback for legacy format
         const decipher = crypto.createDecipheriv('aes-256-cbc', crypto.scryptSync(this.encryptionKey, 'salt', 32), Buffer.alloc(16, 0));
