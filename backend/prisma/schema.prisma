@@ -1064,8 +1064,8 @@ model Card {
   brand                CardBrand         @default(VISA)
   cardHolderName       String            @map("card_holder_name")
   maskedPan            String            @map("masked_pan")
-  tokenReference       String            @map("token_reference")
-  encryptedCvv         String?           @map("encrypted_cvv")
+  tokenReference       String            @map("token_reference") @db.Text
+  encryptedCvv         String?           @map("encrypted_cvv") @db.Text
   pinHash              String?           @map("pin_hash")
   expiryMonth          Int               @map("expiry_month")
   expiryYear           Int               @map("expiry_year")
@@ -1073,7 +1073,7 @@ model Card {
   spendingLimitDaily   Decimal           @default(1000.0000) @map("spending_limit_daily") @db.Decimal(18, 4)
   isFrozen             Boolean           @default(false) @map("is_frozen")
   status               CardStatus        @default(PENDING_APPROVAL)
-  applicationReference String?           @unique @map("application_reference")
+  applicationReference String?           @unique @map("application_reference") @db.VarChar(100)
   rejectionReason      String?           @map("rejection_reason") @db.Text
   approvedAt           DateTime?         @map("approved_at")
   approvedBy           String?           @map("approved_by") @db.VarChar(36)
