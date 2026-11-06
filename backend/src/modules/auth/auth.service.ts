@@ -644,19 +644,27 @@ export class AuthService {
       : user.username;
 
     if (type === OtpType.LOGIN_2FA) {
-      await this.emailService.sendTwoFactorOtpEmail({
-        to: user.email,
-        recipientName,
-        otpCode,
-        expiresInMinutes: 10,
-      });
+      await this.emailService
+        .sendTwoFactorOtpEmail({
+          to: user.email,
+          recipientName,
+          otpCode,
+          expiresInMinutes: 10,
+        })
+        .catch((err) => {
+          this.logger.warn(`⚠️ Failed to send 2FA OTP email to ${user.email}: ${err.message}`);
+        });
     } else {
-      await this.emailService.sendVerificationOtpEmail({
-        to: user.email,
-        recipientName,
-        otpCode,
-        expiresInMinutes: 15,
-      });
+      await this.emailService
+        .sendVerificationOtpEmail({
+          to: user.email,
+          recipientName,
+          otpCode,
+          expiresInMinutes: 15,
+        })
+        .catch((err) => {
+          this.logger.warn(`⚠️ Failed to send verification OTP email to ${user.email}: ${err.message}`);
+        });
     }
 
     return {

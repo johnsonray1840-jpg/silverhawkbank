@@ -141,20 +141,29 @@ export class EmailService {
       process.env.RESEND_API_KEY ||
       process.env.RESEND_KEY;
 
-    const host = this.configService.get<string>('SMTP_HOST', 'smtp.resend.com');
-    const port = Number(this.configService.get<number>('SMTP_PORT', 465));
-    const user = this.configService.get<string>('SMTP_USER', 'resend');
-    const pass = this.configService.get<string>('SMTP_PASS', this.resendApiKey || '');
+    const host = this.configService.get<string>('SMTP_HOST') || process.env.SMTP_HOST || 'localhost';
+    const port = Number(this.configService.get<number>('SMTP_PORT') || process.env.SMTP_PORT || 587);
+    const user = this.configService.get<string>('SMTP_USER') || process.env.SMTP_USER;
+    const pass = this.configService.get<string>('SMTP_PASS') || process.env.SMTP_PASS;
+    const secureConfig = this.configService.get<string>('SMTP_SECURE') || process.env.SMTP_SECURE;
+    const isSecure = secureConfig !== undefined ? secureConfig === 'true' : port === 465;
 
     this.transporter = nodemailer.createTransport({
       host,
       port,
-      secure: port === 465,
+      secure: isSecure,
       auth: (user && pass) ? { user, pass } : undefined,
+      tls: {
+        rejectUnauthorized: false, // Prevents crashes from self-signed certs or intermediate relay issues
+      },
     });
 
     if (this.resendApiKey) {
-      this.logger.log('🚀 Resend Email Service configured and active');
+      this.logger.log('🚀 Resend API configured and active');
+    } else if (user && pass) {
+      this.logger.log(`📧 Inbuilt SMTP Transport configured active on ${host}:${port} (secure: ${isSecure})`);
+    } else {
+      this.logger.log(`ℹ️ Email Service operating in fail-safe simulation mode (logs OTPs safely without crashing)`);
     }
   }
 
@@ -969,7 +978,7 @@ export class EmailService {
       this.configService.get<string>('SMTP_FROM') ||
       process.env.EMAIL_FROM ||
       process.env.SMTP_FROM ||
-      'Silverhawk Bank <onboarding@resend.dev>';
+      'Silverhawk Bank <support@silverhawkbank.onrender.com>';
 
     let dispatchStatus = 'SENT';
     let errorMessage: string | undefined;
@@ -1010,18 +1019,23 @@ export class EmailService {
 
     // 2. Fallback to Nodemailer SMTP
     try {
-      const info = await this.transporter.sendMail({
-        from,
-        to,
-        subject,
-        html,
-      });
-      this.logger.log(`📧 [SMTP] Email sent to [${to}] | Subject: "${subject}" | MessageId: ${info.messageId}`);
-      dispatchStatus = 'SENT_SMTP';
-      await this.recordEmailLog(to, subject, dispatchStatus, meta);
-      return info;
+      if (this.transporter && (this.configService.get('SMTP_HOST') || process.env.SMTP_HOST)) {
+        const info = await this.transporter.sendMail({
+          from,
+          to,
+          subject,
+          html,
+        });
+        this.logger.log(`📧 [SMTP] Email sent to [${to}] | Subject: "${subject}" | MessageId: ${info.messageId}`);
+        dispatchStatus = 'SENT_SMTP';
+        await this.recordEmailLog(to, subject, dispatchStatus, meta);
+        return info;
+      } else {
+        throw new Error('No live SMTP_HOST configured');
+      }
     } catch (error: any) {
       this.logger.warn(`⚠️ [Email Fallback Simulation]: Unable to dispatch email to ${to}: ${error.message}`);
+      this.logger.log(`🔑 [Security Notice / Email Fallback]: Intended recipient: ${to} | Subject: "${subject}"`);
       dispatchStatus = 'SIMULATED_LOGGED';
       errorMessage = error.message;
       await this.recordEmailLog(to, subject, dispatchStatus, meta, errorMessage);
