@@ -152,7 +152,9 @@ export class CardsController {
   async simulateCardTransaction(
     @Param('id') cardId: string,
     @Body() dto: SimulateCardTransactionDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser() user: any,
   ) {
-    return this.cardsService.simulateCardTransaction(cardId, dto);
+    return this.cardsService.simulateCardTransaction(cardId, dto, userId, user);
   }
 }

@@ -30,10 +30,14 @@ export class WebhookHmacGuard implements CanActivate {
 
     const cleanSignature = signature.replace(/^sha256=/, '');
 
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(cleanSignature, 'utf8'),
-      Buffer.from(expectedSignature, 'utf8'),
-    );
+    const bufA = Buffer.from(cleanSignature, 'utf8');
+    const bufB = Buffer.from(expectedSignature, 'utf8');
+
+    if (bufA.length !== bufB.length) {
+      throw new UnauthorizedException('Invalid webhook signature');
+    }
+
+    const isValid = crypto.timingSafeEqual(bufA, bufB);
 
     if (!isValid) {
       throw new UnauthorizedException('Invalid webhook cryptographic signature');

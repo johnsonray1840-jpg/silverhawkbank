@@ -29,16 +29,19 @@ export class CalculateLoanDto {
 
 export class ApplyLoanDto {
   @IsString()
-  @IsNotEmpty()
-  productId: string;
+  @IsOptional()
+  productId?: string;
 
   @IsString()
   @IsNotEmpty()
   accountId: string;
 
   @IsNumberString()
-  @IsNotEmpty()
-  principalAmount: string;
+  @IsOptional()
+  principalAmount?: string;
+
+  @IsOptional()
+  requestedAmount?: number | string;
 
   @IsInt()
   @Min(1)
@@ -51,6 +54,8 @@ export class ApplyLoanDto {
   @MaxLength(1000)
   purpose: string;
 }
+
+export class CreateLoanDto extends ApplyLoanDto {}
 
 export class RepayLoanDto {
   @IsNumberString()
@@ -73,6 +78,10 @@ export class ReviewLoanDto {
 }
 
 export class CreateLoanProductDto {
+  @IsString()
+  @IsOptional()
+  code?: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)

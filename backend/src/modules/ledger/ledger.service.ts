@@ -61,12 +61,36 @@ export class LedgerService {
 
     // 2. Resolve Ledger Accounts and create Ledger Entries
     for (const entry of dto.entries) {
-      const ledgerAccount = await tx.ledgerAccount.findUnique({
+      let ledgerAccount = await tx.ledgerAccount.findUnique({
         where: { accountCode: entry.accountCode },
       });
 
       if (!ledgerAccount) {
-        throw new NotFoundException(`Ledger account code ${entry.accountCode} not found in Chart of Accounts`);
+        const prefix = entry.accountCode.trim().charAt(0);
+        const inferredType: LedgerAccountType =
+          prefix === '1'
+            ? LedgerAccountType.ASSET
+            : prefix === '2'
+            ? LedgerAccountType.LIABILITY
+            : prefix === '3'
+            ? LedgerAccountType.EQUITY
+            : prefix === '4'
+            ? LedgerAccountType.REVENUE
+            : prefix === '5'
+            ? LedgerAccountType.EXPENSE
+            : LedgerAccountType.LIABILITY;
+
+        ledgerAccount = await tx.ledgerAccount.upsert({
+          where: { accountCode: entry.accountCode },
+          update: {},
+          create: {
+            accountCode: entry.accountCode,
+            name: `Auto-Provisioned Ledger Account (${entry.accountCode})`,
+            type: inferredType,
+            currencyCode: entry.currencyCode || 'USD',
+            isSystem: !entry.accountCode.startsWith('20'),
+          },
+        });
       }
 
       await tx.ledgerEntry.create({
@@ -195,18 +219,28 @@ export class LedgerService {
     const assets = trialBalanceData.trialBalance.filter((a) => a.type === LedgerAccountType.ASSET);
     const liabilities = trialBalanceData.trialBalance.filter((a) => a.type === LedgerAccountType.LIABILITY);
     const equity = trialBalanceData.trialBalance.filter((a) => a.type === LedgerAccountType.EQUITY);
+    const revenues = trialBalanceData.trialBalance.filter((a) => a.type === LedgerAccountType.REVENUE);
+    const expenses = trialBalanceData.trialBalance.filter((a) => a.type === LedgerAccountType.EXPENSE);
 
     const sumCategory = (items: typeof assets) =>
       items.reduce((acc, curr) => acc.plus(new Decimal(curr.netBalance)), new Decimal(0));
 
     const totalAssets = sumCategory(assets);
     const totalLiabilities = sumCategory(liabilities);
-    const totalEquity = sumCategory(equity);
+    const baseEquity = sumCategory(equity);
+    const totalRevenue = sumCategory(revenues);
+    const totalExpenses = sumCategory(expenses);
+    const retainedEarningsNetIncome = totalRevenue.minus(totalExpenses);
+    const totalEquity = baseEquity.plus(retainedEarningsNetIncome);
 
     return {
       assets: { items: assets, total: totalAssets.toFixed(4) },
       liabilities: { items: liabilities, total: totalLiabilities.toFixed(4) },
-      equity: { items: equity, total: totalEquity.toFixed(4) },
+      equity: {
+        items: equity,
+        retainedEarningsNetIncome: retainedEarningsNetIncome.toFixed(4),
+        total: totalEquity.toFixed(4),
+      },
       liabilitiesAndEquityTotal: totalLiabilities.plus(totalEquity).toFixed(4),
       isBalanced: totalAssets.equals(totalLiabilities.plus(totalEquity)),
       generatedAt: new Date(),

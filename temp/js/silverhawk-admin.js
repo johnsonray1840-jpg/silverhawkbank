@@ -72,12 +72,13 @@
     },
 
     getToken() {
-      return localStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem('token') || localStorage.getItem('silverhawk_token');
+      return localStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem('silverhawk_access_token') || localStorage.getItem('token') || localStorage.getItem('silverhawk_token');
     },
 
     setToken(token) {
       if (token) {
         localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+        localStorage.setItem('silverhawk_access_token', token);
         localStorage.setItem('token', token);
         localStorage.setItem('silverhawk_token', token);
       }
@@ -179,6 +180,8 @@
       localStorage.removeItem(STORAGE_KEYS.USER);
       localStorage.removeItem('token');
       localStorage.removeItem('silverhawk_token');
+      localStorage.removeItem('silverhawk_access_token');
+      localStorage.removeItem('silverhawk_refresh_token');
     },
 
     // ----------------------------------------------------
@@ -432,17 +435,40 @@
       });
     },
 
-    async reverseTransaction(id) {
+    async reverseTransaction(id, reason = 'Administrative transaction reversal authorized by compliance') {
       return await this.request(`/admin/transactions/${id}/reverse`, {
         method: 'POST',
+        body: { reason },
       });
     },
 
     async exportTransactions(query = {}) {
-      const params = new URLSearchParams(query).toString();
-      const url = `${API_BASE}/admin/transactions/export?${params}`;
-      window.open(url, '_blank');
-      return { success: true };
+      try {
+        const params = new URLSearchParams(query).toString();
+        const url = `${API_BASE}/admin/transactions/export?${params}`;
+        const token = this.getToken();
+        const response = await fetch(url, {
+          headers: token ? { Authorization: 'Bearer ' + token } : {},
+        });
+        if (!response.ok) {
+          throw new Error(`Export failed with HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `silverhawk_transactions_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(downloadUrl);
+        return { success: true };
+      } catch (err) {
+        if (window.SilverhawkToast) {
+          window.SilverhawkToast(err.message || 'Failed to export transactions', 'error');
+        }
+        throw err;
+      }
     },
 
     // ----------------------------------------------------
@@ -734,9 +760,10 @@
     },
 
     async assignStaffRoles(userId, roles) {
+      const roleList = Array.isArray(roles) ? roles : [roles];
       return await this.request(`/admin/staff/${userId}/roles`, {
         method: 'PUT',
-        body: { roleIds: Array.isArray(roles) ? roles : [roles] },
+        body: { roles: roleList, roleIds: roleList },
       });
     },
 
@@ -817,10 +844,32 @@
     },
 
     async exportAuditLogs(format = 'CSV') {
-      const token = this.getToken();
-      const url = `${API_BASE}/audit/export?format=${format}`;
-      window.open(url, '_blank');
-      return { success: true };
+      try {
+        const token = this.getToken();
+        const url = `${API_BASE}/audit/export?format=${format}`;
+        const response = await fetch(url, {
+          headers: token ? { Authorization: 'Bearer ' + token } : {},
+        });
+        if (!response.ok) {
+          throw new Error(`Audit export failed with HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        const ext = String(format).toLowerCase() === 'json' ? 'json' : 'csv';
+        a.download = `silverhawk_audit_logs_${new Date().toISOString().slice(0, 10)}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(downloadUrl);
+        return { success: true };
+      } catch (err) {
+        if (window.SilverhawkToast) {
+          window.SilverhawkToast(err.message || 'Failed to export audit logs', 'error');
+        }
+        throw err;
+      }
     },
   };
 

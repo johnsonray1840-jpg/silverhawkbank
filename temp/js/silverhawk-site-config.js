@@ -20,6 +20,8 @@
     return '/api/v1/settings/public';
   })();
 
+  const SETTINGS_KEY = 'silverhawk_site_settings';
+
   const DEFAULT_SETTINGS = {
     // 1. Bank Name & Brand
     bank_name: 'Silverhawk Digital Federal Trust',
@@ -39,7 +41,7 @@
     emergency_phone: '+1 (800) 892-4199',
     headquarters_address: '100 Wall Street, 28th Floor, New York, NY 10005, United States',
     routing_number: '021000021',
-    swift_code: 'RMVLUS33NYC',
+    swift_code: 'SLVHUS33XXX',
     business_hours: 'Mon - Fri: 8:00 AM - 6:00 PM EST | 24/7 Live Treasury Desks',
 
     // 8. Currencies

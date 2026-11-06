@@ -80,8 +80,8 @@
         emailPreviewTab: 'CONFIRMATION',
         emailPreviewData: {
             subject: 'Transfer Instruction Received',
-            sender: 'Silverhawk Treasury <no-reply@remivellebank.com>',
-            recipient: 'Valued Client <customer@client.remivellebank.com>',
+            sender: 'Silverhawk Treasury <no-reply@silverhawkbank.com>',
+            recipient: 'Valued Client <customer@client.silverhawkbank.com>',
             date: '',
             html: '',
             tx: null
@@ -6420,7 +6420,7 @@ Enter amount on keypad and press
             const fullName = `${firstName} ${lastName}`.trim();
             const displayName = fullName || user.username || user.email || 'Valued Customer';
             
-            let initials = 'RC';
+            let initials = 'SH';
             if (firstName) {
                 initials = (firstName[0] + (lastName ? lastName[0] : '')).toUpperCase();
             } else if (user.username) {
@@ -6487,9 +6487,10 @@ Enter amount on keypad and press
         function getSilverhawkCurrencySymbol(code) {
             if (!code) return '$';
             const c = String(code).toUpperCase().trim();
-            if (window.getSilverhawkCurrencySymbol) return window.getSilverhawkCurrencySymbol(c);
             return DASHBOARD_CURRENCY_SYMBOLS[c] || `${c} `;
         }
+        window.getSilverhawkCurrencySymbol = getSilverhawkCurrencySymbol;
+        window.getCurrencySymbol = getSilverhawkCurrencySymbol;
 
         function formatAccountTypeName(type) {
             if (!type) return 'Business Account';
@@ -7194,7 +7195,7 @@ Enter amount on keypad and press
             if (elRecipientAcc) elRecipientAcc.textContent = `#${receiptData.beneficiary?.accountNumber || receiptData.accountNumber || 'N/A'}`;
             if (elRecipientBank) elRecipientBank.textContent = receiptData.beneficiary?.bankName || receiptData.bankName || 'Silverhawk Bank';
             if (elDesc) elDesc.textContent = receiptData.description || 'Electronic Funds Settlement';
-            if (elHash) elHash.textContent = receiptData.clearingMetadata?.verificationHash || ('CERT-RMVL-' + Math.random().toString(36).substring(2, 12).toUpperCase());
+            if (elHash) elHash.textContent = receiptData.clearingMetadata?.verificationHash || ('CERT-SLVH-' + Math.random().toString(36).substring(2, 12).toUpperCase());
         }
 
         async function handlePreviewTransfer() {
@@ -7609,7 +7610,7 @@ Enter amount on keypad and press
                             bankName: form.bankName.trim()
                         },
                         clearingMetadata: {
-                            verificationHash: 'CERT-RMVL-' + Math.random().toString(36).substring(2, 12).toUpperCase() + '-' + Date.now().toString(16)
+                            verificationHash: 'CERT-SLVH-' + Math.random().toString(36).substring(2, 12).toUpperCase() + '-' + Date.now().toString(16)
                         }
                     };
                 }
@@ -7873,10 +7874,15 @@ Enter amount on keypad and press
         async function handleApplyLoan(e) {
             e.preventDefault();
             const btn = document.getElementById('loan-submit-btn');
-            const type = document.getElementById('loan-product-type').value;
-            const amount = parseFloat(document.getElementById('loan-amount-input').value);
-            const tenure = parseInt(document.getElementById('loan-tenure-months').value);
-            const purpose = document.getElementById('loan-purpose-input').value.trim();
+            const type = document.getElementById('loan-product-type')?.value || 'PERSONAL';
+            const amount = parseFloat(document.getElementById('loan-amount-input')?.value || 0);
+            const tenure = parseInt(document.getElementById('loan-tenure-months')?.value || 24, 10);
+            const purpose = document.getElementById('loan-purpose-input')?.value?.trim() || 'Working Capital';
+
+            if (!amount || amount <= 0) {
+                window.SilverhawkToast('Please enter a valid loan amount.', 'error');
+                return;
+            }
 
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Underwriting Application...';
@@ -7884,9 +7890,20 @@ Enter amount on keypad and press
             try {
                 const summary = await window.SilverhawkAPI.getDashboardSummary();
                 const accountId = summary?.accounts?.[0]?.id;
+                let productId = document.getElementById('loan-product-id')?.value || type;
+                try {
+                    const productsRes = await window.SilverhawkAPI.getLoanProducts();
+                    const products = Array.isArray(productsRes) ? productsRes : (productsRes?.products || productsRes?.data || []);
+                    if (products.length > 0) {
+                        const matched = products.find(p => p.id === type || (p.name && p.name.toUpperCase().includes(type.toUpperCase()))) || products[0];
+                        if (matched?.id) productId = matched.id;
+                    }
+                } catch (_) {}
 
                 await window.SilverhawkAPI.applyLoan({
+                    productId,
                     accountId,
+                    principalAmount: String(amount),
                     requestedAmount: amount,
                     tenureMonths: tenure,
                     purpose: purpose || 'Working Capital'
@@ -7897,21 +7914,21 @@ Enter amount on keypad and press
                 if (data) data.showLoanModal = false;
                 await loadDashboardData();
             } catch (err) {
-                window.SilverhawkToast(`Loan application for \$${amount.toLocaleString()} submitted for compliance review.`, 'success');
-                const data = getAlpineData();
-                if (data) data.showLoanModal = false;
+                const showToast = window.SilverhawkToast || window.showToast || alert;
+                showToast(err.message || 'Failed to submit loan application', 'error');
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = 'Submit Loan Application';
             }
         }
+        window.handleLoanApplication = handleApplyLoan;
 
         async function handleApplyGrant(e) {
             e.preventDefault();
             const btn = document.getElementById('grant-submit-btn');
-            const scheme = document.getElementById('grant-program-select').value;
-            const amount = parseFloat(document.getElementById('grant-amount-input').value);
-            const projectName = document.getElementById('grant-project-name').value.trim();
+            const scheme = document.getElementById('grant-program-select')?.value || '';
+            const amount = parseFloat(document.getElementById('grant-amount-input')?.value || 0);
+            const projectName = document.getElementById('grant-project-name')?.value?.trim() || document.getElementById('grant-title-input')?.value?.trim() || '';
 
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Registering Grant File...';
@@ -8613,7 +8630,7 @@ Enter amount on keypad and press
                 container.innerHTML = links.map(l => {
                     const sym = l.currency === 'EUR' ? '€' : l.currency === 'GBP' ? '£' : '$';
                     const amtStr = l.amount ? `${sym}${Number(l.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Customer Choice';
-                    const linkUrl = l.url || `${window.location.origin}/checkout.html?ref=${l.id}`;
+                    const linkUrl = l.url || `${window.location.origin}/dashboard.html?paylink=${l.id}`;
                     return `
                         <div class="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 space-y-2">
                             <div class="flex items-center justify-between">
@@ -8916,7 +8933,7 @@ Enter amount on keypad and press
                 });
 
                 const code = res.code || (res.data && res.data.code) || 'CSH-' + Math.floor(100000 + Math.random() * 900000);
-                const fullUrl = `${window.location.origin}/claim.html?code=${code}`;
+                const fullUrl = `${window.location.origin}/dashboard.html?cashlink=${code}`;
                 lastCreatedCashlinkUrl = fullUrl;
 
                 const resBox = document.getElementById('cashlink-result-container');
@@ -9881,7 +9898,7 @@ Enter amount on keypad and press
             const alpineData = getAlpineData();
             const user = (typeof window.SilverhawkAPI !== 'undefined' ? window.SilverhawkAPI.getUser() : null) || {};
             const userName = user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (alpineData?.userProfile?.fullName || 'Valued Treasury Client');
-            const userEmail = user.email || 'customer@client.remivellebank.com';
+            const userEmail = user.email || 'customer@client.silverhawkbank.com';
 
             const amount = tx?.amount ? parseFloat(tx.amount).toFixed(2) : '10,000.00';
             const currency = tx?.currency || 'USD';
@@ -9917,7 +9934,7 @@ Enter amount on keypad and press
                     if (res && res.html) {
                         return {
                             subject: res.subject || `Notification — ${ref}`,
-                            sender: 'Silverhawk Digital Federal Trust <no-reply@remivellebank.com>',
+                            sender: 'Silverhawk Digital Federal Trust <no-reply@silverhawkbank.com>',
                             recipient: `${userName} <${userEmail}>`,
                             date: new Date().toUTCString(),
                             html: res.html,
@@ -10018,7 +10035,7 @@ Enter amount on keypad and press
 
             return {
                 subject: subjectMap[type] || `Silverhawk Notification — ${ref}`,
-                sender: 'Silverhawk Treasury Notifications <no-reply@remivellebank.com>',
+                sender: 'Silverhawk Treasury Notifications <no-reply@silverhawkbank.com>',
                 recipient: `${userName} <${userEmail}>`,
                 date: new Date().toUTCString(),
                 html: clientHtml,

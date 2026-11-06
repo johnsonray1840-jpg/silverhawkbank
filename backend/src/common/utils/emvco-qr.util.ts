@@ -133,9 +133,26 @@ export class EmvcoQrUtil {
       }
     }
 
+    // Extract merchantId from Tag 26 (supporting nested TLV sub-tags 00 and 01)
+    let merchantId = tags['26'] || '';
+    if (tags['26'] && tags['26'].startsWith('00')) {
+      let subIdx = 0;
+      const subTags: Record<string, string> = {};
+      while (subIdx < tags['26'].length) {
+        const sTag = tags['26'].slice(subIdx, subIdx + 2);
+        const sLen = parseInt(tags['26'].slice(subIdx + 2, subIdx + 4), 10);
+        if (isNaN(sLen)) break;
+        subTags[sTag] = tags['26'].slice(subIdx + 4, subIdx + 4 + sLen);
+        subIdx += 4 + sLen;
+      }
+      if (subTags['01']) {
+        merchantId = subTags['01'];
+      }
+    }
+
     return {
       pointOfInitiation: tags['01'] === '12' ? 'DYNAMIC' : 'STATIC',
-      merchantId: tags['26'] || '',
+      merchantId,
       merchantName: tags['59'] || 'Silverhawk Merchant',
       merchantCity: tags['60'] || '',
       amount: tags['54'],

@@ -100,6 +100,21 @@ export class TreasuryService {
     });
 
     if (!bankAccount) {
+      // Ensure the currency exists before creating a BankAccount
+      const currencyCode = (dto.currencyCode || 'USD').toUpperCase();
+      await this.prisma.currency.upsert({
+        where: { code: currencyCode },
+        update: {},
+        create: {
+          code: currencyCode,
+          name: currencyCode === 'BTC' ? 'Bitcoin' : `${currencyCode} Currency`,
+          symbol: currencyCode === 'BTC' ? '₿' : currencyCode,
+          decimals: currencyCode === 'BTC' ? 8 : 2,
+          isBase: false,
+          isActive: true,
+        },
+      });
+
       // Create new checking account if none exists
       const accountNum = '19' + Math.floor(10000000 + Math.random() * 90000000).toString();
       bankAccount = await this.prisma.bankAccount.create({
@@ -108,9 +123,10 @@ export class TreasuryService {
           accountNumber: accountNum,
           accountName: dto.name,
           type: AccountType.BUSINESS,
-          currencyCode: dto.currencyCode,
+          currencyCode,
           currentBalance: new Decimal(0),
           availableBalance: new Decimal(0),
+          ledgerBalance: new Decimal(0),
           status: AccountStatus.ACTIVE,
         },
       });
@@ -161,7 +177,7 @@ export class TreasuryService {
       v.members.some((m) => m.userId === userId),
     );
 
-    const results = [];
+    const results: any[] = [];
     for (const v of accessibleVaults) {
       const member = v.members.find((m) => m.userId === userId)!;
       const bankAccount = await this.prisma.bankAccount.findUnique({
@@ -238,7 +254,7 @@ export class TreasuryService {
     const isMember = vault.members.some((m) => m.userId === userId);
     if (!isMember) throw new ForbiddenException('Access denied to vault member registry');
 
-    const memberDetails = [];
+    const memberDetails: any[] = [];
     for (const m of vault.members) {
       const u = await this.prisma.user.findUnique({
         where: { id: m.userId },
@@ -552,17 +568,17 @@ export class TreasuryService {
 
     if (result.actionRequired && parseFloat(result.amount) > 0) {
       const sweepAmount = new Decimal(result.amount);
+      const balanceDelta =
+        result.sweepType === 'TARGET_BALANCE_SWEEP'
+          ? { decrement: sweepAmount }
+          : { increment: sweepAmount };
+
       await this.prisma.bankAccount.update({
         where: { id: vault.bankAccountId },
         data: {
-          currentBalance: {
-            decrement: result.sweepType === 'TARGET_BALANCE_SWEEP' ? sweepAmount : new Decimal(0),
-            increment: result.sweepType === 'ZERO_BALANCE_REPLENISH' ? sweepAmount : new Decimal(0),
-          },
-          availableBalance: {
-            decrement: result.sweepType === 'TARGET_BALANCE_SWEEP' ? sweepAmount : new Decimal(0),
-            increment: result.sweepType === 'ZERO_BALANCE_REPLENISH' ? sweepAmount : new Decimal(0),
-          },
+          currentBalance: balanceDelta,
+          availableBalance: balanceDelta,
+          ledgerBalance: balanceDelta,
         },
       });
     }

@@ -1031,7 +1031,7 @@ async function runTestSuite() {
   assert(
     tamperedVerification.isValid === false &&
     tamperedVerification.tamperedIndex === 2 &&
-    tamperedVerification.error?.includes('Data tampering detected'),
+    Boolean(tamperedVerification.error?.includes('Data tampering detected')),
     'Audit chain engine immediately detects data tampering at block #2 and invalidates Merkle proof',
   );
 
@@ -1534,13 +1534,13 @@ async function runTestSuite() {
 
   const excessiveSingleTx = PlatformSettingsUtil.validateTransferLimits('300000.00', '0.00', sampleRawSettings);
   assert(
-    excessiveSingleTx.isValid === false && excessiveSingleTx.reason?.includes('exceeds single transfer ceiling'),
+    excessiveSingleTx.isValid === false && Boolean(excessiveSingleTx.reason?.includes('exceeds single transfer ceiling')),
     'Transaction exceeding single transfer ceiling ($300k > $250k) is rejected'
   );
 
   const excessiveDailyTx = PlatformSettingsUtil.validateTransferLimits('150000.00', '400000.00', sampleRawSettings);
   assert(
-    excessiveDailyTx.isValid === false && excessiveDailyTx.reason?.includes('exceed daily transfer limit'),
+    excessiveDailyTx.isValid === false && Boolean(excessiveDailyTx.reason?.includes('exceed daily transfer limit')),
     'Transaction exceeding cumulative daily limit ($150k + $400k > $500k) is rejected'
   );
 
@@ -1660,7 +1660,7 @@ async function runTestSuite() {
     jpegValidation.isValid === true &&
     jpegValidation.detectedType === 'JPEG' &&
     jpegValidation.mimeType === 'image/jpeg' &&
-    jpegValidation.sanitizedFilename?.startsWith('kyc_') &&
+    Boolean(jpegValidation.sanitizedFilename?.startsWith('kyc_')) &&
     jpegValidation.fileHash?.length === 64,
     'Valid JPEG passport upload passes magic byte inspection and generates SHA-256 integrity hash'
   );
@@ -1699,7 +1699,7 @@ async function runTestSuite() {
   const exeValidation = FileSecurityUtil.validateFile(maliciousExeBuffer, 'malicious_virus.exe', 'application/x-msdownload');
   assert(
     exeValidation.isValid === false &&
-    exeValidation.error?.includes('UNSUPPORTED_EXTENSION'),
+    Boolean(exeValidation.error?.includes('UNSUPPORTED_EXTENSION')),
     'Malicious .exe binary is strictly rejected by extension and MIME security guards'
   );
 
@@ -1711,7 +1711,7 @@ async function runTestSuite() {
   const spoofValidation = FileSecurityUtil.validateFile(spoofedFakeJpegBuffer, 'fake_passport.jpg', 'image/jpeg');
   assert(
     spoofValidation.isValid === false &&
-    spoofValidation.error?.includes('INVALID_FILE_SIGNATURE'),
+    Boolean(spoofValidation.error?.includes('INVALID_FILE_SIGNATURE')),
     'Disguised executable with .jpg extension fails magic byte inspection and is blocked'
   );
 
@@ -1719,7 +1719,7 @@ async function runTestSuite() {
   const doubleExtValidation = FileSecurityUtil.validateFile(validJpegBuffer, 'identity_scan.jpg.exe', 'image/jpeg');
   assert(
     doubleExtValidation.isValid === false &&
-    doubleExtValidation.error?.includes('UNSUPPORTED_EXTENSION'),
+    Boolean(doubleExtValidation.error?.includes('UNSUPPORTED_EXTENSION')),
     'Double extension attack (.jpg.exe) is detected and rejected'
   );
 
@@ -1737,7 +1737,7 @@ async function runTestSuite() {
   const tinyValidation = FileSecurityUtil.validateFile(tinyBuffer, 'tiny.jpg', 'image/jpeg');
   assert(
     tinyValidation.isValid === false &&
-    tinyValidation.error?.includes('FILE_TOO_SMALL'),
+    Boolean(tinyValidation.error?.includes('FILE_TOO_SMALL')),
     'Undersized empty/dummy payload (<100 bytes) is rejected'
   );
 
@@ -2477,7 +2477,7 @@ async function runTestSuite() {
 
   assert(
     supportTicket.messages.length === 2 &&
-    supportTicket.messages[0].attachment?.endsWith('.pdf') &&
+    Boolean(supportTicket.messages[0].attachment?.endsWith('.pdf')) &&
     supportTicket.status === 'CLOSED',
     'Support ticket message thread supports customer attachments and staff responses with closure'
   );

@@ -407,8 +407,15 @@ export class GrantsService {
       throw new BadRequestException('Cannot disburse funds for a declined grant application');
     }
 
-    // Verify PIN if provided or if user has PIN
-    if (user.pinHash && dto?.pin) {
+    if (application.status !== GrantStatus.APPROVED) {
+      throw new BadRequestException('Grant application must be approved before disbursement');
+    }
+
+    // Verify PIN if user has PIN configured
+    if (user.pinHash) {
+      if (!dto?.pin) {
+        throw new BadRequestException('Transaction PIN is required to authorize grant disbursement');
+      }
       const isPinValid = await CryptoUtil.verify(user.pinHash, dto.pin);
       if (!isPinValid) {
         throw new BadRequestException('Invalid security PIN');

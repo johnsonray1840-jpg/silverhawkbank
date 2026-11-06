@@ -52,6 +52,10 @@ export class CurrenciesService {
    * Convert amount between currencies with multi-leg triangulation & crypto support
    */
   async convertAmount(from: string, to: string, amount: string) {
+    if (amount === undefined || amount === null || String(amount).trim() === '' || isNaN(Number(amount)) || !isFinite(Number(amount))) {
+      throw new BadRequestException('Invalid amount');
+    }
+
     const fromNorm = (from || 'USD').toUpperCase();
     const toNorm = (to || 'BTC').toUpperCase();
 
@@ -215,6 +219,20 @@ export class CurrenciesService {
 
       // Auto-provision BTC / Crypto wallet if first time swapping to BTC
       if (!destinationAccount) {
+        // Ensure targetCurrency exists in Currency table before creating BankAccount
+        await this.prisma.currency.upsert({
+          where: { code: targetCurrency },
+          update: {},
+          create: {
+            code: targetCurrency,
+            name: targetCurrency === 'BTC' ? 'Bitcoin' : `${targetCurrency} Currency`,
+            symbol: targetCurrency === 'BTC' ? '₿' : targetCurrency,
+            decimals: targetCurrency === 'BTC' ? 8 : 2,
+            isBase: false,
+            isActive: true,
+          },
+        });
+
         const newAccNum = CryptoUtil.generateAccountNumber();
         const holderName = user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user.username;
         destinationAccount = await this.prisma.bankAccount.create({
@@ -232,8 +250,10 @@ export class CurrenciesService {
         });
 
         // Ensure Liability Ledger Account exists
-        await this.prisma.ledgerAccount.create({
-          data: {
+        await this.prisma.ledgerAccount.upsert({
+          where: { accountCode: `2010-${newAccNum}` },
+          update: {},
+          create: {
             accountCode: `2010-${newAccNum}`,
             name: `Liability - ${destinationAccount.accountName}`,
             type: 'LIABILITY',
@@ -279,6 +299,7 @@ export class CurrenciesService {
         data: {
           currentBalance: { decrement: totalDebitSource.toString() },
           availableBalance: { decrement: totalDebitSource.toString() },
+          ledgerBalance: { decrement: totalDebitSource.toString() },
         },
       });
 
@@ -288,6 +309,7 @@ export class CurrenciesService {
         data: {
           currentBalance: { increment: netCreditDest.toString() },
           availableBalance: { increment: netCreditDest.toString() },
+          ledgerBalance: { increment: netCreditDest.toString() },
         },
       });
 

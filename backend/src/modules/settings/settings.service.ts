@@ -89,10 +89,12 @@ export class SettingsService {
 
     await Promise.all(updates);
 
+    const safeActorId = adminId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(adminId) ? adminId : null;
+
     // Record audit trail
     await this.prisma.auditLog.create({
       data: {
-        actorId: adminId || 'usr_adm_master',
+        actorId: safeActorId,
         action: 'CMS_PLATFORM_SETTINGS_BATCH_UPDATED',
         resource: 'SystemSetting',
         beforeState: beforeMap,
@@ -122,9 +124,11 @@ export class SettingsService {
 
     this.logger.log(`Dispatching test SMTP message to ${dto.recipientEmail} via ${host}:${port}`);
 
+    const safeActorId = adminId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(adminId) ? adminId : null;
+
     await this.prisma.auditLog.create({
       data: {
-        actorId: adminId || 'usr_adm_master',
+        actorId: safeActorId,
         action: 'SMTP_CONNECTION_TEST',
         resource: 'SmtpServer',
         resourceId: host,
@@ -156,9 +160,11 @@ export class SettingsService {
 
     this.logger.log(`Dispatching test SMS to ${dto.recipientPhone} via provider ${provider}`);
 
+    const safeActorId = adminId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(adminId) ? adminId : null;
+
     await this.prisma.auditLog.create({
       data: {
-        actorId: adminId || 'usr_adm_master',
+        actorId: safeActorId,
         action: 'SMS_GATEWAY_TEST',
         resource: 'SmsGateway',
         resourceId: provider,

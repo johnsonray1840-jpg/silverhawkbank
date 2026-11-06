@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-API_URL="${API_URL:-http://localhost:4000/api/v1/health}"
+API_URL="${API_URL:-http://localhost:3000/api/v1/health}"
 
 echo "🩺 Probing Silverhawk API health endpoint: ${API_URL}..."
 

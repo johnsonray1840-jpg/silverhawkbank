@@ -3096,7 +3096,7 @@ p {
   clip-path: polygon(0 0, 100% 0, 50% 100%, 0% 100%);
 }
 .bg-animation-left.task-management-home:after {
-  background: url("https://silverhawkbank.com/temp/images/task/bg.png") #2f55d4;
+  background: #2f55d4;
   width: 100%;
   -webkit-clip-path: circle(65% at 40% 25%);
   clip-path: circle(65% at 40% 25%);
@@ -3345,7 +3345,7 @@ p {
   height: 40px;
   top: 80px;
   left: 80%;
-  background: url("https://silverhawkbank.com/temp/images/process.png") center center no-repeat;
+  background: center center no-repeat;
   z-index: 1;
 }
 @media (max-width: 767px) {

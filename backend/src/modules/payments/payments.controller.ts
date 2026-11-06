@@ -18,6 +18,7 @@ import {
   VerifyGatewayPaymentDto,
 } from './dto/payment.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Payment Gateways')
@@ -25,6 +26,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  @Public()
   @Get('providers')
   @ApiOperation({ summary: 'List supported payment providers and features' })
   @ApiResponse({ status: 200, description: 'List of payment gateways' })
@@ -61,6 +63,7 @@ export class PaymentsController {
   /**
    * Universal public webhook endpoint for external providers (Stripe, Paystack, Flutterwave, Bank Transfer)
    */
+  @Public()
   @Post('webhook/:provider')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Public webhook endpoint for payment providers' })

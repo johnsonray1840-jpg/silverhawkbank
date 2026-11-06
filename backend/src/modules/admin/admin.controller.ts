@@ -42,6 +42,7 @@ import {
   ReplyTicketDto,
   ResetUserPasswordDto,
   ResetUserPinDto,
+  ReverseTransactionAdminDto,
   ReverseWithdrawalDto,
   ReviewKycDto,
   ReviewLoanDto,
@@ -451,8 +452,9 @@ export class AdminController {
   async reverseTransaction(
     @Param('id') id: string,
     @CurrentUser('id') adminId: string,
+    @Body() dto?: ReverseTransactionAdminDto,
   ) {
-    return this.adminService.reverseTransaction(id, adminId);
+    return this.adminService.reverseTransaction(id, adminId, dto?.reason);
   }
 
   // ---------------------------------------------------------------------------

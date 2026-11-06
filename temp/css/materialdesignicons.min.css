@@ -1,13 +1,9 @@
 @font-face {
   font-family: "Material Design Icons";
-  src: url("../fonts/materialdesignicons-webfonte910.eot%3Fv=5.8.55");
-  src: url("../fonts/materialdesignicons-webfontd41d.eot%3F")
+  src: url("../fonts/materialdesignicons-webfont.eot");
+  src: url("../fonts/materialdesignicons-webfont.eot?#iefix")
       format("embedded-opentype"),
-    url("https://silverhawkbank.com/temp/fonts/materialdesignicons-webfonte910.html?v=5.8.55")
-      format("woff2"),
-    url("../fonts/materialdesignicons-webfonte910.woff%3Fv=5.8.55") format("woff"),
-    url("https://silverhawkbank.com/temp/fonts/materialdesignicons-webfonte910-2.html?v=5.8.55")
-      format("truetype");
+    url("../fonts/materialdesignicons-webfont.woff") format("woff");
   font-weight: normal;
   font-style: normal;
 }

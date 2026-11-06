@@ -58,7 +58,7 @@ npm run build
 ### Step E: Process Management via PM2
 ```bash
 npm install -g pm2
-pm2 start dist/main.js --name "silverhawk-api" -i max
+pm2 start dist/src/main.js --name "silverhawk-api" -i max
 pm2 save
 pm2 startup
 ```
@@ -72,7 +72,7 @@ Place the following configuration in `/etc/nginx/sites-available/silverhawkbank.
 ```nginx
 # Upstream NestJS Backend API
 upstream silverhawk_backend {
-    server 127.0.0.1:4000;
+    server 127.0.0.1:3000;
     keepalive 32;
 }
 
@@ -154,7 +154,7 @@ gunzip < /var/backups/silverhawk/mysql/silverhawk_db_20260910_000000.sql.gz | my
 
 | Account Role | Email Identifier | Default Password | Transaction PIN |
 | :--- | :--- | :--- | :--- |
-| **Super Admin** | `admin@silverhawkbank.com` | `Admin@Silverhawk2026!` | `1234` |
-| **Demo Customer** | `john.doe@example.com` | `Customer@Silverhawk2026!` | `1234` |
+| **Super Admin** | `superadmin@silverhawkbank.com` | `SilverhawkAdmin2026!` | `1234` |
+| **Demo Customer** | `john.smith@example.com` | `CustomerPass123!` | `1234` |
 
 > ⚠️ **Important Security Note**: Universal demo credentials must be changed immediately upon deploying to a public production environment via the `/api/v1/auth/change-password` endpoint.

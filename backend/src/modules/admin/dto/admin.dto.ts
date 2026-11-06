@@ -406,8 +406,8 @@ export class CreateSarDto {
 // -----------------------------------------------------------------------------
 export class IssueCardAdminDto {
   @IsString()
-  @IsNotEmpty()
-  userId: string;
+  @IsOptional()
+  userId?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -437,8 +437,8 @@ export class IssueCardAdminDto {
 export class UpdateCardStatusAdminDto {
   @IsString()
   @IsNotEmpty()
-  @IsIn(['PENDING_APPROVAL', 'ACTIVE', 'FROZEN', 'BLOCKED', 'CANCELLED', 'EXPIRED', 'REJECTED'])
-  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'FROZEN' | 'BLOCKED' | 'CANCELLED' | 'EXPIRED' | 'REJECTED';
+  @IsIn(['PENDING_APPROVAL', 'ACTIVE', 'INACTIVE', 'FROZEN', 'BLOCKED', 'CANCELLED', 'TERMINATED', 'EXPIRED', 'REJECTED'])
+  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'INACTIVE' | 'FROZEN' | 'BLOCKED' | 'CANCELLED' | 'TERMINATED' | 'EXPIRED' | 'REJECTED';
 }
 
 export class RejectCardDto {
@@ -484,6 +484,10 @@ export class UpdateMasterSettingsDto {
 // LOAN PRODUCTS & OPERATIONS DTOS
 // -----------------------------------------------------------------------------
 export class CreateLoanProductDto {
+  @IsString()
+  @IsOptional()
+  code?: string;
+
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -693,14 +697,31 @@ export class CreateStaffUserDto {
 
   @IsArray()
   @IsString({ each: true })
-  @IsNotEmpty()
-  roles: string[];
+  @IsOptional()
+  roles?: string[];
+
+  @IsString()
+  @IsOptional()
+  role?: string;
 }
 
 export class AssignUserRolesDto {
   @IsArray()
   @IsString({ each: true })
-  @IsNotEmpty()
-  roles: string[];
+  @IsOptional()
+  roles?: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  roleIds?: string[];
+}
+
+export class AssignRoleDto extends AssignUserRolesDto {}
+
+export class ReverseTransactionAdminDto {
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }
 

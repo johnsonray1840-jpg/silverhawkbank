@@ -53,6 +53,7 @@ RewriteRule ^ - [L]
 # 5. Clean URL rewrites (extensionless HTML routes)
 # --------------------------------------------------------------------------
 RewriteRule ^admin$ /admin.html [L]
+RewriteRule ^admin-portal$ /admin.html [L]
 RewriteRule ^dashboard$ /dashboard.html [L]
 RewriteRule ^login$ /login.html [L]
 RewriteRule ^register$ /register.html [L]
@@ -65,8 +66,10 @@ RewriteRule ^terms$ /terms-of-service.html [L]
 RewriteRule ^terms-of-service$ /terms-of-service.html [L]
 RewriteRule ^grants$ /grants.html [L]
 RewriteRule ^send-money$ /send-money.html [L]
+RewriteRule ^loans$ /send-money.html [L]
 RewriteRule ^alerts$ /alerts.html [L]
 RewriteRule ^business$ /business.html [L]
+RewriteRule ^personal$ /chart.html [L]
 RewriteRule ^apps$ /apps.html [L]
 RewriteRule ^chart$ /chart.html [L]
 

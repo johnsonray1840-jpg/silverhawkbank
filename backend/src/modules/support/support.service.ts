@@ -54,11 +54,13 @@ export class SupportService {
         },
       });
 
+      const initialMessage = dto.message || dto.description || dto.subject;
+
       await tx.supportMessage.create({
         data: {
           ticketId: ticket.id,
           senderId: userId,
-          message: dto.message,
+          message: initialMessage,
           attachment: dto.attachment || null,
           isStaff: false,
         },
@@ -396,9 +398,9 @@ export class SupportService {
 
     if (query?.search) {
       where.OR = [
-        { ticketNumber: { contains: query.search, mode: 'insensitive' } },
-        { subject: { contains: query.search, mode: 'insensitive' } },
-        { user: { email: { contains: query.search, mode: 'insensitive' } } },
+        { ticketNumber: { contains: query.search } },
+        { subject: { contains: query.search } },
+        { user: { email: { contains: query.search } } },
       ];
     }
 

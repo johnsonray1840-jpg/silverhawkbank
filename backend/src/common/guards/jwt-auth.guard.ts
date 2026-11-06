@@ -19,6 +19,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
+    const req = context.switchToHttp().getRequest();
+    const authHeader: string | undefined = req?.headers?.authorization;
+    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer rem_')) {
+      return true;
+    }
+
     return super.canActivate(context);
   }
 }

@@ -33,20 +33,32 @@ export class TransactionsService {
     const { page = 1, limit = 20, type, status, currency, search, startDate, endDate } = queryDto;
     const skip = (page - 1) * limit;
 
+    const andConditions: Prisma.TransactionWhereInput[] = [
+      {
+        OR: [
+          { userId },
+          { sourceAccount: { userId } },
+          { destinationAccount: { userId } },
+        ],
+      },
+    ];
+
+    if (search) {
+      andConditions.push({
+        OR: [
+          { reference: { contains: search } },
+          { description: { contains: search } },
+        ],
+      });
+    }
+
     const where: Prisma.TransactionWhereInput = {
-      userId,
+      AND: andConditions,
     };
 
     if (type) where.type = type;
     if (status) where.status = status;
     if (currency) where.currencyCode = currency.toUpperCase();
-
-    if (search) {
-      where.OR = [
-        { reference: { contains: search } },
-        { description: { contains: search } },
-      ];
-    }
 
     if (startDate || endDate) {
       where.createdAt = {};
@@ -108,7 +120,12 @@ export class TransactionsService {
       throw new NotFoundException('Transaction not found');
     }
 
-    if (transaction.userId !== userId) {
+    const isOwnerOrParticipant =
+      transaction.userId === userId ||
+      transaction.sourceAccount?.userId === userId ||
+      transaction.destinationAccount?.userId === userId;
+
+    if (!isOwnerOrParticipant) {
       throw new ForbiddenException('Access denied to this transaction');
     }
 
@@ -120,7 +137,14 @@ export class TransactionsService {
    */
   async getTransactionReceipt(userId: string, transactionId: string) {
     const tx = await this.prisma.transaction.findFirst({
-      where: { id: transactionId, userId },
+      where: {
+        id: transactionId,
+        OR: [
+          { userId },
+          { sourceAccount: { userId } },
+          { destinationAccount: { userId } },
+        ],
+      },
       include: {
         user: { include: { profile: true } },
         sourceAccount: true,
@@ -322,6 +346,7 @@ export class TransactionsService {
       }
 
       // 3. Create Compensating Reversal Transaction
+      const reversalReason = dto?.reason || 'Administrative transaction reversal';
       const reversalTx = await tx.transaction.create({
         data: {
           reference: reversalRef,
@@ -334,10 +359,10 @@ export class TransactionsService {
           netAmount: amount.toFixed(4),
           currencyCode: originalTx.currencyCode,
           status: TransactionStatus.SUCCESS,
-          description: `Reversal of ${originalTx.reference}: ${dto.reason}`,
+          description: `Reversal of ${originalTx.reference}: ${reversalReason}`,
           metadata: {
             originalTransactionReference: originalTx.reference,
-            reversalReason: dto.reason,
+            reversalReason,
             reversedBy: adminId || 'SYSTEM_ADMIN',
           },
         },

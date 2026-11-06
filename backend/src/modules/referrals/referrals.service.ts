@@ -399,7 +399,7 @@ export class ReferralsService {
       // 6. Audit Trail
       await tx.auditLog.create({
         data: {
-          actorId: adminId || 'usr_system_cron',
+          actorId: adminId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(adminId) ? adminId : null,
           action: 'REFERRAL_REWARD_DISBURSED',
           resource: 'ReferralCommission',
           resourceId: commission.id,

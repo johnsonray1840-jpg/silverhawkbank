@@ -98,6 +98,7 @@ async function bootstrap() {
   console.log(`📂 Serving static frontend assets from: ${frontendDir}`);
   const cleanRouteMap: Record<string, string> = {
     '/admin': 'admin.html',
+    '/admin-portal': 'admin.html',
     '/dashboard': 'dashboard.html',
     '/login': 'login.html',
     '/register': 'register.html',
@@ -110,7 +111,10 @@ async function bootstrap() {
     '/terms-of-service': 'terms-of-service.html',
     '/grants': 'grants.html',
     '/send-money': 'send-money.html',
+    '/loans': 'send-money.html',
     '/alerts': 'alerts.html',
+    '/business': 'business.html',
+    '/personal': 'chart.html',
     '/apps': 'apps.html',
     '/chart': 'chart.html',
   };

@@ -281,13 +281,65 @@ export class TransfersService {
         },
       });
 
-      // 6. Credit destination account balances
+      // 6. Calculate destination credit amount (with FX conversion if cross-currency)
+      let destinationCreditAmount = transferAmount;
+      let appliedExchangeRate = new Decimal(1);
+
+      if (sourceAccount.currencyCode !== destinationAccount.currencyCode) {
+        const fromCurr = sourceAccount.currencyCode.toUpperCase();
+        const toCurr = destinationAccount.currencyCode.toUpperCase();
+        const standardUsdRates: Record<string, number> = {
+          USD: 1.000000,
+          EUR: 0.920000,
+          GBP: 0.785000,
+          CAD: 1.365000,
+          AUD: 1.512000,
+          JPY: 155.450000,
+          CHF: 0.908000,
+          NGN: 1480.000000,
+          BTC: 0.000013,
+        };
+
+        const directRate = await tx.exchangeRate.findUnique({
+          where: {
+            baseCurrency_quoteCurrency: {
+              baseCurrency: fromCurr,
+              quoteCurrency: toCurr,
+            },
+          },
+        });
+
+        if (directRate) {
+          appliedExchangeRate = new Decimal(directRate.rate.toString());
+        } else {
+          const inverseRate = await tx.exchangeRate.findUnique({
+            where: {
+              baseCurrency_quoteCurrency: {
+                baseCurrency: toCurr,
+                quoteCurrency: fromCurr,
+              },
+            },
+          });
+          if (inverseRate) {
+            appliedExchangeRate = new Decimal(1).dividedBy(new Decimal(inverseRate.rate.toString()));
+          } else {
+            const fromToUsd = standardUsdRates[fromCurr] ? new Decimal(1).dividedBy(new Decimal(standardUsdRates[fromCurr])) : new Decimal(1);
+            const usdToTarget = standardUsdRates[toCurr] ? new Decimal(standardUsdRates[toCurr]) : new Decimal(1);
+            appliedExchangeRate = fromToUsd.times(usdToTarget);
+          }
+        }
+
+        const isCrypto = toCurr === 'BTC' || fromCurr === 'BTC';
+        destinationCreditAmount = transferAmount.times(appliedExchangeRate).toDecimalPlaces(isCrypto ? 8 : 4, Decimal.ROUND_HALF_UP);
+      }
+
+      // Credit destination account balances
       await tx.bankAccount.update({
         where: { id: destinationAccount.id },
         data: {
-          currentBalance: { increment: transferAmount.toFixed(4) },
-          availableBalance: { increment: transferAmount.toFixed(4) },
-          ledgerBalance: { increment: transferAmount.toFixed(4) },
+          currentBalance: { increment: destinationCreditAmount.toFixed(4) },
+          availableBalance: { increment: destinationCreditAmount.toFixed(4) },
+          ledgerBalance: { increment: destinationCreditAmount.toFixed(4) },
         },
       });
 
@@ -302,7 +354,7 @@ export class TransfersService {
           type: TransactionType.TRANSFER_INTERNAL,
           amount: transferAmount.toFixed(4),
           fee: fee.toFixed(4),
-          netAmount: transferAmount.toFixed(4),
+          netAmount: destinationCreditAmount.toFixed(4),
           currencyCode: sourceAccount.currencyCode,
           status: TransactionStatus.SUCCESS,
           description: dto.description || 'Internal Transfer',
@@ -312,6 +364,13 @@ export class TransfersService {
               ? `${destinationAccount.user.profile.firstName} ${destinationAccount.user.profile.lastName}`
               : destinationAccount.accountName,
             recipientAccountNumber: destinationAccount.accountNumber,
+            ...(sourceAccount.currencyCode !== destinationAccount.currencyCode
+              ? {
+                  destinationCurrency: destinationAccount.currencyCode,
+                  creditedAmount: destinationCreditAmount.toFixed(4),
+                  exchangeRate: appliedExchangeRate.toFixed(6),
+                }
+              : {}),
           },
         },
       });

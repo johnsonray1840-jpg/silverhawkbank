@@ -1,5 +1,5 @@
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class QueryBeneficiariesDto {
@@ -14,7 +14,7 @@ export class QueryBeneficiariesDto {
   currency?: string;
 
   @ApiPropertyOptional({ example: true })
-  @Type(() => Boolean)
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   @IsOptional()
   isInternal?: boolean;

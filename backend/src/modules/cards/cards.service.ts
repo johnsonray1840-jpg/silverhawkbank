@@ -496,7 +496,12 @@ export class CardsService {
   /**
    * Simulate POS / Online card payment
    */
-  async simulateCardTransaction(cardId: string, dto: SimulateCardTransactionDto) {
+  async simulateCardTransaction(
+    cardId: string,
+    dto: SimulateCardTransactionDto,
+    userId?: string,
+    requestingUser?: any,
+  ) {
     const card = await this.prisma.card.findUnique({
       where: { id: cardId },
       include: {
@@ -507,6 +512,18 @@ export class CardsService {
 
     if (!card) {
       throw new NotFoundException('Card not found');
+    }
+
+    if (userId && card.userId !== userId) {
+      const roles: string[] = Array.isArray(requestingUser?.roles)
+        ? requestingUser.roles
+        : requestingUser?.role
+        ? [requestingUser.role]
+        : [];
+      const isAdmin = roles.includes('ADMIN') || roles.includes('SUPER_ADMIN');
+      if (!isAdmin) {
+        throw new ForbiddenException('You do not own this card');
+      }
     }
 
     if (card.status !== CardStatus.ACTIVE || card.isFrozen) {

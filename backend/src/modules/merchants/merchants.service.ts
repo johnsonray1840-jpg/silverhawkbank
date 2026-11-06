@@ -421,6 +421,7 @@ export class MerchantsService {
     const txRef = CryptoUtil.generateTransactionReference('PAYLINK-SETTLE');
 
     await this.prisma.$transaction(async (tx) => {
+      let payerAccountNumber: string | null = null;
       // If payer uses an internal bank account
       if (dto.payerAccountId) {
         const payerAccount = await tx.bankAccount.findUnique({
@@ -431,12 +432,17 @@ export class MerchantsService {
           throw new ForbiddenException('Invalid or unowned payer account');
         }
 
+        payerAccountNumber = payerAccount.accountNumber;
+
         if (new Decimal(payerAccount.availableBalance.toString()).lessThan(payableAmount)) {
           throw new BadRequestException('Insufficient available balance for checkout');
         }
 
         if (dto.pin) {
           const user = await tx.user.findUnique({ where: { id: payerAccount.userId } });
+          if (!user || !user.pinHash) {
+            throw new ForbiddenException('Transaction PIN not configured or invalid user');
+          }
           const isValidPin = await CryptoUtil.verify(user.pinHash, dto.pin);
           if (!isValidPin) {
             throw new ForbiddenException('Invalid authorization PIN');
@@ -512,7 +518,7 @@ export class MerchantsService {
       // Debit: 2010-<payerAcc> or 1050-CARD-CLEARING
       // Credit: 2010-<merchantAcc> (Net settlement)
       // Credit: 4010-MDR-FEES (Bank Merchant Fee Revenue)
-      const payerLedgerCode = dto.payerAccountId ? `2010-${dto.payerAccountId.slice(0, 10)}` : '1050-CARD-CLEARING';
+      const payerLedgerCode = payerAccountNumber ? `2010-${payerAccountNumber}` : '1050-CARD-CLEARING';
       const merchantLedgerCode = `2010-${merchantAccount.accountNumber}`;
 
       await this.ledgerService.postJournalEntry(

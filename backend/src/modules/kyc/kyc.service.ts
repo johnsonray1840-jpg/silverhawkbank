@@ -185,7 +185,7 @@ export class KycService {
    */
   async getSecureDocument(
     documentId: string,
-    requestingUser: { id: string; role?: string; permissions?: string[] },
+    requestingUser: { id: string; role?: string; roles?: string[]; permissions?: string[] },
   ) {
     const document = await this.prisma.kycDocument.findUnique({
       where: { id: documentId },
@@ -200,24 +200,45 @@ export class KycService {
       throw new NotFoundException('KYC document not found');
     }
 
+    const userRoles = Array.isArray(requestingUser.roles)
+      ? requestingUser.roles
+      : requestingUser.role
+      ? [requestingUser.role]
+      : [];
+
     const isOwner = document.kycProfile.userId === requestingUser.id;
     const isAdmin =
-      requestingUser.role === 'ADMIN' ||
-      requestingUser.role === 'SUPER_ADMIN' ||
-      (requestingUser.permissions && requestingUser.permissions.includes('kyc.read'));
+      userRoles.includes('ADMIN') ||
+      userRoles.includes('SUPER_ADMIN') ||
+      userRoles.includes('KYC_OFFICER') ||
+      (requestingUser.permissions &&
+        (requestingUser.permissions.includes('kyc.read') || requestingUser.permissions.includes('kyc:read')));
 
     if (!isOwner && !isAdmin) {
       throw new ForbiddenException('Access denied: You are not authorized to access this KYC document');
     }
 
+    // Validate path is inside allowed storage/upload directory to prevent path traversal
+    const resolvedPath = path.resolve(document.filePath);
+    const allowedStorageDir = path.resolve(process.cwd(), 'storage');
+    const allowedUploadsDir = path.resolve(process.cwd(), 'uploads');
+    if (
+      !resolvedPath.startsWith(allowedStorageDir + path.sep) &&
+      resolvedPath !== allowedStorageDir &&
+      !resolvedPath.startsWith(allowedUploadsDir + path.sep) &&
+      resolvedPath !== allowedUploadsDir
+    ) {
+      throw new ForbiddenException('Access denied: Document path outside secure storage boundary');
+    }
+
     // Verify file exists on disk
-    if (!fs.existsSync(document.filePath)) {
+    if (!fs.existsSync(resolvedPath)) {
       throw new NotFoundException('The document binary could not be found on secure disk storage');
     }
 
     return {
-      filePath: document.filePath,
-      originalFilename: document.originalFilename || `kyc_doc_${document.id}${path.extname(document.filePath)}`,
+      filePath: resolvedPath,
+      originalFilename: document.originalFilename || `kyc_doc_${document.id}${path.extname(resolvedPath)}`,
       mimeType: document.mimeType,
       fileSize: document.fileSize,
       documentType: document.documentType,

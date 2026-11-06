@@ -3555,7 +3555,7 @@
                 adminEmailTab: 'CONFIRMATION',
                 adminEmailData: {
                     subject: 'Transfer Instruction Received',
-                    sender: 'Silverhawk Treasury <no-reply@remivellebank.com>',
+                    sender: 'Silverhawk Treasury <no-reply@silverhawkbank.com>',
                     recipient: 'Customer Account',
                     date: '',
                     html: '',
@@ -3616,6 +3616,7 @@
                     reason: ''
                 },
                 issueCardForm: {
+                    userId: '',
                     accountId: '',
                     brand: 'VISA',
                     cardType: 'VIRTUAL',
@@ -3682,7 +3683,7 @@
                         support_email: 'support@silverhawkbank.com',
                         support_phone: '+1 (800) 482-9920',
                         routing_number: '021000021',
-                        swift_code: 'RMVLUS33NYC',
+                        swift_code: 'SLVHUS33XXX',
                         bank_address: '100 Wall Street, 28th Floor, New York, NY 10005',
                         fdic_insured_limit: '$250,000.00',
                         hysa_apy_rate: '5.25% APY',
@@ -4199,7 +4200,7 @@
                     const counterparty = tx?.beneficiaryName || tx?.recipientName || (tx?.user ? `${tx.user.profile?.firstName || ''} ${tx.user.profile?.lastName || ''}`.trim() : 'Apex Global Holdings Inc.');
                     const counterpartyAcc = tx?.accountNumber || '4089192834';
                     const bankName = tx?.bankName || 'JPMorgan Chase NY';
-                    const userEmail = tx?.user?.email || 'customer@client.remivellebank.com';
+                    const userEmail = tx?.user?.email || 'customer@client.silverhawkbank.com';
                     const userName = tx?.user?.profile ? `${tx.user.profile.firstName} ${tx.user.profile.lastName}`.trim() : 'Valued Treasury Client';
 
                     const params = new URLSearchParams({
@@ -4221,12 +4222,14 @@
                     }).toString();
 
                     try {
-                        const res = await fetch(`/api/v1/notifications/email-templates/preview?${params}`);
+                        const res = await fetch(window.SilverhawkAdminAPI.getBaseUrl() + '/notifications/email-templates/preview?' + params, {
+                            headers: { Authorization: 'Bearer ' + window.SilverhawkAdminAPI.getToken() }
+                        });
                         if (res.ok) {
                             const data = await res.json();
                             const payload = data.data || data;
                             this.adminEmailData.subject = payload.subject || `Silverhawk Notification — ${ref}`;
-                            this.adminEmailData.sender = 'Silverhawk Digital Federal Trust <no-reply@remivellebank.com>';
+                            this.adminEmailData.sender = 'Silverhawk Digital Federal Trust <no-reply@silverhawkbank.com>';
                             this.adminEmailData.recipient = `${userName} <${userEmail}>`;
                             this.adminEmailData.date = new Date().toUTCString();
                             this.adminEmailData.html = payload.html;
@@ -4239,7 +4242,7 @@
 
                     // Fallback
                     this.adminEmailData.subject = `Silverhawk Notification — ${ref}`;
-                    this.adminEmailData.sender = 'Silverhawk Digital Federal Trust <no-reply@remivellebank.com>';
+                    this.adminEmailData.sender = 'Silverhawk Digital Federal Trust <no-reply@silverhawkbank.com>';
                     this.adminEmailData.recipient = `${userName} <${userEmail}>`;
                     this.adminEmailData.date = new Date().toUTCString();
                     this.adminEmailData.html = `<div style="font-family: sans-serif; padding: 20px; background: #f8fafc;"><h2>Silverhawk Transaction Notice (${type})</h2><p>Reference: <b>${ref}</b></p><p>Amount: <b>${currency} ${amount}</b></p><p>Recipient: <b>${counterparty}</b></p></div>`;
@@ -4457,7 +4460,15 @@
 
                 async submitCreateLoanProduct() {
                     try {
-                        await window.SilverhawkAdminAPI.createLoanProduct(this.createLoanProductForm);
+                        const payload = {
+                            ...this.createLoanProductForm,
+                            minAmount: Number(this.createLoanProductForm.minAmount),
+                            maxAmount: Number(this.createLoanProductForm.maxAmount),
+                            minTenureMonths: Number(this.createLoanProductForm.minTenureMonths),
+                            maxTenureMonths: Number(this.createLoanProductForm.maxTenureMonths),
+                            interestRate: Number(this.createLoanProductForm.interestRate)
+                        };
+                        await window.SilverhawkAdminAPI.createLoanProduct(payload);
                         window.SilverhawkToast('Loan product created and published to credit catalog!', 'success');
                         this.showCreateLoanProductModal = false;
                         await this.loadLoans();
@@ -4527,7 +4538,10 @@
 
                 async submitCreateStaff() {
                     try {
-                        await window.SilverhawkAdminAPI.createStaffMember(this.createStaffForm);
+                        await window.SilverhawkAdminAPI.createStaffMember({
+                            ...this.createStaffForm,
+                            roles: [this.createStaffForm.role || 'ADMIN']
+                        });
                         window.SilverhawkToast('Staff officer provisioned successfully with assigned RBAC permissions!', 'success');
                         this.showCreateStaffModal = false;
                         await this.loadStaff();
@@ -4566,7 +4580,7 @@
                     const reason = prompt('Specify rejection reason:');
                     if (reason === null) return;
                     try {
-                        await window.SilverhawkAdminAPI.updateGrantStatus(grant.id, { status: 'REJECTED' });
+                        await window.SilverhawkAdminAPI.updateGrantStatus(grant.id, { status: 'REJECTED', reviewNotes: reason });
                         window.SilverhawkToast('Grant application rejected.', 'info');
                         await this.loadGrants();
                     } catch (err) {
@@ -4665,6 +4679,7 @@
 
                 openIssueCardModal() {
                     this.issueCardForm = {
+                        userId: this.accountsList[0]?.userId || '',
                         accountId: this.accountsList[0]?.id || '',
                         brand: 'VISA',
                         cardType: 'VIRTUAL',
@@ -4677,7 +4692,12 @@
 
                 async submitIssueCard() {
                     try {
-                        await window.SilverhawkAdminAPI.issueCard(this.issueCardForm);
+                        const selectedAcc = this.accountsList.find(a => a.id === this.issueCardForm.accountId);
+                        const payload = {
+                            ...this.issueCardForm,
+                            userId: this.issueCardForm.userId || selectedAcc?.userId || this.selectedUser?.id
+                        };
+                        await window.SilverhawkAdminAPI.issueCard(payload);
                         window.SilverhawkToast('New card issued successfully!', 'success');
                         this.showIssueCardModal = false;
                         await this.loadCards();

@@ -7,18 +7,19 @@ This document maps all existing frontend pages, views, UI layouts, navigation st
 
 ## 2. Public & Marketing Routes
 
-| Route / File | Title | Layout / Structure | Key Interactive Elements & Forms |
-| :--- | :--- | :--- | :--- |
-| [`index.html`](file:///Users/mac/Desktop/silverhawkbank.com/index.html) | Home - Silverhawk | Landing page, Hero section, Feature grids, Currency transfer calculator preview, Testimonials, Dark/Light Mode toggle, Smartsupp Live Chat, Footer. | Dark mode switcher, Navigation links, "Open Account" CTA, "Sign In" CTA. |
-| [`about.html`](file:///Users/mac/Desktop/silverhawkbank.com/about.html) | About Us - Silverhawk | Company background, Mission, Core values, Executive team, Security assurances, Translation dropdown. | Navigation, Dark mode switcher, Language selector (MyMemory / LibreTranslate API), CTA buttons. |
-| [`contact.html`](file:///Users/mac/Desktop/silverhawkbank.com/contact.html) | Contact Us - Silverhawk | Support channels, Office details, 24/7 hotline info, Contact form. | **Contact Form**: `name`, `email`, `subject`, `message` &rarr; Submits to `/api/v1/support/contact`. |
-| [`chart.html`](file:///Users/mac/Desktop/silverhawkbank.com/chart.html) | Personal Banking - Silverhawk | Personal savings, Checking accounts, Term deposits, Interest calculators. | Product comparisons, "Apply Now" triggers, Dark mode switcher. |
-| [`alerts.html`](file:///Users/mac/Desktop/silverhawkbank.com/alerts.html) | Business Banking - Silverhawk | Corporate banking, Merchant accounts, Payroll services, International wire info. | Feature breakdown, Business account inquiry triggers. |
-| [`send-money.html`](file:///Users/mac/Desktop/silverhawkbank.com/send-money.html) | Loans & Credit - Silverhawk | Loan product breakdown (Personal, Business, Mortgage), Interest rates, Repayment calculator preview. | Loan eligibility guide, "Apply for Loan" CTA. |
-| [`grants.html`](file:///Users/mac/Desktop/silverhawkbank.com/grants.html) | Grants & Financial Aid - Silverhawk | Grant programs, Educational/SME financial aid information, Eligibility checklists. | Financial aid application triggers, FAQ accordion. |
-| [`apps.html`](file:///Users/mac/Desktop/silverhawkbank.com/apps.html) | Apps - Silverhawk | iOS and Android mobile banking app showcase, QR code download links, Feature previews. | App store links, Mobile feature cards. |
-| [`privacy.html`](file:///Users/mac/Desktop/silverhawkbank.com/privacy.html) | Privacy Policy - Silverhawk | GDPR, Data protection disclosures, Cookie policies. | Legal text accordion, Language selector. |
-| [`terms-of-service.html`](file:///Users/mac/Desktop/silverhawkbank.com/terms-of-service.html) | Terms of Service - Silverhawk | Legal user terms, Financial agreement, Liability disclosures. | Legal sections, Language selector. |
+| Route / File | Clean Alias | Title | Layout / Structure | Key Interactive Elements & Forms |
+| :--- | :--- | :--- | :--- | :--- |
+| [`index.html`](file:///Users/mac/Desktop/silverhawkbank/index.html) | `/` | Home - Silverhawk | Landing page, Hero section, Feature grids, Currency transfer calculator preview, Testimonials, Dark/Light Mode toggle, Smartsupp Live Chat, Footer. | Dark mode switcher, Navigation links, "Open Account" CTA, "Sign In" CTA. |
+| [`about.html`](file:///Users/mac/Desktop/silverhawkbank/about.html) | `/about` | About Us - Silverhawk | Company background, Mission, Core values, Executive team, Security assurances, Translation dropdown. | Navigation, Dark mode switcher, Language selector (MyMemory / LibreTranslate API), CTA buttons. |
+| [`contact.html`](file:///Users/mac/Desktop/silverhawkbank/contact.html) | `/contact` | Contact Us - Silverhawk | Support channels, Office details, 24/7 hotline info, Contact form. | **Contact Form**: `name`, `email`, `subject`, `message` &rarr; Submits to `/api/v1/support/contact`. |
+| [`chart.html`](file:///Users/mac/Desktop/silverhawkbank/chart.html) | `/chart`, `/personal` | Personal Banking & Live Charts - Silverhawk | Personal savings, Checking accounts, Term deposits, Live market rates & interest calculators. | Product comparisons, "Apply Now" triggers, Dark mode switcher. |
+| [`business.html`](file:///Users/mac/Desktop/silverhawkbank/business.html) | `/business` | Business Banking - Silverhawk | Corporate banking, Merchant accounts, Payroll services, International wire & treasury solutions. | Feature breakdown, Business account inquiry triggers, "Open Business Account" CTA. |
+| [`alerts.html`](file:///Users/mac/Desktop/silverhawkbank/alerts.html) | `/alerts` | Security & Rate Alerts - Silverhawk | Real-time transaction alerts, FX rate notifications, Fraud monitoring & account security alerts. | Alert subscription toggles, Notification channel breakdown. |
+| [`send-money.html`](file:///Users/mac/Desktop/silverhawkbank/send-money.html) | `/send-money`, `/loans` | International Transfers & Loans - Silverhawk | Global remittance corridor guide, Loan product breakdown (Personal, Business, Mortgage), Interest rates, Repayment calculator preview. | Transfer/Loan eligibility guide, "Send Money" / "Apply for Loan" CTA. |
+| [`grants.html`](file:///Users/mac/Desktop/silverhawkbank/grants.html) | `/grants` | Grants & Financial Aid - Silverhawk | Grant programs, Educational/SME financial aid information, Eligibility checklists. | Financial aid application triggers, FAQ accordion. |
+| [`apps.html`](file:///Users/mac/Desktop/silverhawkbank/apps.html) | `/apps` | Apps - Silverhawk | iOS and Android mobile banking app showcase, QR code download links, Feature previews. | App store links, Mobile feature cards. |
+| [`privacy.html`](file:///Users/mac/Desktop/silverhawkbank/privacy.html) | `/privacy` | Privacy Policy - Silverhawk | GDPR, Data protection disclosures, Cookie policies. | Legal text accordion, Language selector. |
+| [`terms-of-service.html`](file:///Users/mac/Desktop/silverhawkbank/terms-of-service.html) | `/terms-of-service` | Terms of Service - Silverhawk | Legal user terms, Financial agreement, Liability disclosures. | Legal sections, Language selector. |
 
 ---
 
@@ -26,21 +27,21 @@ This document maps all existing frontend pages, views, UI layouts, navigation st
 
 | Route / File | Purpose | Form Fields & Payload | Target API Endpoint |
 | :--- | :--- | :--- | :--- |
-| [`login.html`](file:///Users/mac/Desktop/silverhawkbank.com/login.html) | User & Admin Sign In | `email` (or `username`), `password`, `remember_me` | `POST /api/v1/auth/login` |
-| [`register.html`](file:///Users/mac/Desktop/silverhawkbank.com/register.html) | 4-Step Registration Wizard | **Step 1 (Personal)**: `name`, `lastname`, `middlename`, `username`<br>**Step 2 (Contact)**: `email`, `phone`, `country`<br>**Step 3 (Account)**: `curr` (Currency), `accounttype`, `pin` (4-digit PIN)<br>**Step 4 (Security)**: `password`, `password_confirmation`, `terms` | `POST /api/v1/auth/register` |
-| [`forgot-password.html`](file:///Users/mac/Desktop/silverhawkbank.com/forgot-password.html) | Password Reset Request | `email` | `POST /api/v1/auth/forgot-password` |
-| [`verify.html`](file:///Users/mac/Desktop/silverhawkbank.com/verify.html) | Security & Bot Verification / 2FA | `code` (Auto-generated security/2FA OTP code verification) | `POST /api/v1/auth/verify-code` |
+| [`login.html`](file:///Users/mac/Desktop/silverhawkbank/login.html) | User & Admin Sign In | `email` (or `username`), `password`, `remember_me` | `POST /api/v1/auth/login` |
+| [`register.html`](file:///Users/mac/Desktop/silverhawkbank/register.html) | 4-Step Registration Wizard | **Step 1 (Personal)**: `name`, `lastname`, `middlename`, `username`<br>**Step 2 (Contact)**: `email`, `phone`, `country`<br>**Step 3 (Account)**: `curr` (Currency), `accounttype`, `pin` (4-digit PIN)<br>**Step 4 (Security)**: `password`, `password_confirmation`, `terms` | `POST /api/v1/auth/register` |
+| [`forgot-password.html`](file:///Users/mac/Desktop/silverhawkbank/forgot-password.html) | Password Reset Request | `email` | `POST /api/v1/auth/forgot-password` |
+| [`verify.html`](file:///Users/mac/Desktop/silverhawkbank/verify.html) | Security & Bot Verification / 2FA | `code` (Auto-generated security/2FA OTP code verification) | `POST /api/v1/auth/verify-code` |
 
 ---
 
 ## 4. Customer Banking Portal Views (Dashboard)
 
-The customer portal mounts inside [`dashboard/`](file:///Users/mac/Desktop/silverhawkbank.com/dashboard) and adheres to the existing Tailwind/Alpine.js theme tokens:
+The customer portal mounts inside [`dashboard/`](file:///Users/mac/Desktop/silverhawkbank/dashboard) and adheres to the existing Tailwind/Alpine.js theme tokens:
 
 | Portal View | Route | Features & Components | Backend Data Dependencies |
 | :--- | :--- | :--- | :--- |
 | **Overview Dashboard** | `/dashboard` | Total balance, Available balance, Ledger balance, Recent transactions, Quick actions (Transfer, Deposit, Withdraw, Pay), Monthly cash flow chart. | `/api/v1/accounts/summary`, `/api/v1/transactions/recent`, `/api/v1/reports/monthly-cashflow` |
-| **Cards Hub** | [`dashboard/index.html`](file:///Users/mac/Desktop/silverhawkbank.com/dashboard/index.html) | Virtual/Physical card list, Card freeze/unfreeze, Spending limits, Sensitive details toggle (masked PAN/CVV), Card transactions. | `/api/v1/cards`, `/api/v1/cards/:id/freeze`, `/api/v1/cards/:id/limits` |
+| **Cards Hub** | [`dashboard/index.html`](file:///Users/mac/Desktop/silverhawkbank/dashboard/index.html) | Virtual/Physical card list, Card freeze/unfreeze, Spending limits, Sensitive details toggle (masked PAN/CVV), Card transactions. | `/api/v1/cards`, `/api/v1/cards/:id/freeze`, `/api/v1/cards/:id/limits` |
 | **Transfers Hub** | `/dashboard/transfers` | Internal transfer, Cross-account transfer, External bank transfer, Beneficiary selector, 2FA/PIN confirmation modal. | `/api/v1/transfers/internal`, `/api/v1/transfers/external`, `/api/v1/beneficiaries` |
 | **Deposits** | `/dashboard/deposits` | Deposit methods (Bank wire, Card gateway, Crypto/Manual), Reference generator, Proof-of-payment upload. | `/api/v1/deposits/methods`, `/api/v1/deposits/initiate`, `/api/v1/deposits/history` |
 | **Withdrawals** | `/dashboard/withdrawals` | Bank withdrawal form, Balance validation, Daily limits indicator, OTP confirmation. | `/api/v1/withdrawals/request`, `/api/v1/withdrawals/limits` |
@@ -57,7 +58,7 @@ The customer portal mounts inside [`dashboard/`](file:///Users/mac/Desktop/silve
 
 | Admin View | Route | Description & Management Controls |
 | :--- | :--- | :--- |
-| **Admin Overview** | `/admin` | System assets/liabilities, Active users count, Pending KYC counter, Pending deposits/withdrawals, Recent fraud alerts. |
+| **Admin Overview** | `/admin`, `/admin-portal` ([`admin.html`](file:///Users/mac/Desktop/silverhawkbank/admin.html)) | System assets/liabilities, Active users count, Pending KYC counter, Pending deposits/withdrawals, Recent fraud alerts. |
 | **Customer Management** | `/admin/users` | User list, Profile inspector, KYC verification review, Account freeze/unfreeze, Password reset dispatch, Activity audit log. |
 | **Ledger & Accounts** | `/admin/ledger` | Real-time double-entry ledger inspector, Journal transactions, General ledger accounts, Balance sheet view. |
 | **Transaction Desk** | `/admin/transactions` | Global transaction stream, Manual credit/debit adjustment desk, Transaction reversal engine with immutable compensating entries. |

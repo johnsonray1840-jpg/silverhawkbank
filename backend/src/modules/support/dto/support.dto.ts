@@ -26,10 +26,15 @@ export class CreateTicketDto {
   @IsOptional()
   priority?: SupportTicketPriority;
 
-  @ApiProperty({ description: 'Initial message content' })
+  @ApiPropertyOptional({ description: 'Initial message content' })
   @IsString()
-  @IsNotEmpty()
-  message: string;
+  @IsOptional()
+  message?: string;
+
+  @ApiPropertyOptional({ description: 'Alternative description content' })
+  @IsString()
+  @IsOptional()
+  description?: string;
 
   @ApiPropertyOptional({ description: 'Secure attachment document URL' })
   @IsString()

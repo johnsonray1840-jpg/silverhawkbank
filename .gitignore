@@ -1,4 +1,3 @@
-```
 # Dependencies
 node_modules/
 
@@ -120,6 +119,5 @@ __pycache__/
 coverage.xml
 coverage-final.json
 
-# Temporary API file
-temp/js/silverhawk-api.js
-```
+# Secure KYC Vault
+backend/storage/secure_kyc_vault/

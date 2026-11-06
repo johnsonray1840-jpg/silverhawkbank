@@ -59,7 +59,7 @@ export class AuthController {
   }
 
   @Public()
-  @Post('refresh-token')
+  @Post(['refresh-token', 'refresh'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using rotating refresh token' })
   async refreshToken(

@@ -44,7 +44,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      const secret = this.configService.get<string>('JWT_ACCESS_SECRET') || 'silverhawk-super-secret-jwt-key';
+      const secret =
+        this.configService.get<string>('JWT_SECRET') ||
+        this.configService.get<string>('JWT_ACCESS_SECRET') ||
+        'super-secret-jwt-key-change-in-production-silverhawk-banking-2026';
       const payload = await this.jwtService.verifyAsync(token, { secret });
       const userId = payload.sub || payload.id;
 
@@ -53,14 +56,25 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
+      const roles: string[] = Array.isArray(payload.roles)
+        ? payload.roles
+        : payload.role
+        ? [payload.role]
+        : [];
+
       client.data.userId = userId;
-      client.data.role = payload.role;
+      client.data.role = roles[0] || payload.role;
+      client.data.roles = roles;
 
       // Join user-specific private room
       client.join(`user:${userId}`);
 
       // If user is ADMIN or STAFF, join administrative monitoring room
-      if (payload.role === 'ADMIN' || payload.role === 'SUPER_ADMIN' || payload.role === 'COMPLIANCE_OFFICER') {
+      if (
+        roles.some((r) =>
+          ['ADMIN', 'SUPER_ADMIN', 'COMPLIANCE_OFFICER', 'FINANCE_MANAGER', 'KYC_OFFICER', 'LOAN_OFFICER', 'SUPPORT_AGENT', 'AUDITOR'].includes(r),
+        )
+      ) {
         client.join('room:admin');
       }
 

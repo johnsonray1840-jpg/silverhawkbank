@@ -15,7 +15,7 @@ BACKUP_FILE="$1"
 DB_NAME="${DB_NAME:-silverhawk_db}"
 DB_USER="${DB_USER:-silverhawk_admin}"
 DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-5432}"
+DB_PORT="${DB_PORT:-3306}"
 
 if [ ! -f "${BACKUP_FILE}" ]; then
   echo "❌ Error: Backup file ${BACKUP_FILE} does not exist!"
@@ -32,21 +32,20 @@ echo "======================================================"
 CHECKSUM_FILE="${BACKUP_FILE%.sql.gz}.sha256"
 if [ -f "${CHECKSUM_FILE}" ]; then
   echo "🔍 Verifying SHA-256 integrity checksum..."
-  sha256sum -c "${CHECKSUM_FILE}"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "${CHECKSUM_FILE}"
+  else
+    shasum -a 256 -c "${CHECKSUM_FILE}"
+  fi
   echo "✅ Checksum verified!"
 fi
 
 echo "🔄 Restoring database snapshot..."
-PGPASSWORD="${DB_PASSWORD:-SilverhawkSecPass2026!}" pg_restore \
+gunzip < "${BACKUP_FILE}" | MYSQL_PWD="${DB_PASSWORD:-silverhawkpass}" mysql \
   -h "${DB_HOST}" \
-  -p "${DB_PORT}" \
-  -U "${DB_USER}" \
-  -d "${DB_NAME}" \
-  --clean \
-  --if-exists \
-  --no-owner \
-  --no-privileges \
-  "${BACKUP_FILE}"
+  -P "${DB_PORT}" \
+  -u "${DB_USER}" \
+  "${DB_NAME}"
 
 echo "✅ Database restored successfully!"
 echo "======================================================"

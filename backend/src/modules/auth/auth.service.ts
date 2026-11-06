@@ -542,7 +542,7 @@ export class AuthService {
 
     return {
       message: 'If an account exists with this email, a password reset link has been dispatched.',
-      resetToken, // Provided in development for easy testing
+      ...(process.env.NODE_ENV !== 'production' ? { resetToken } : {}),
     };
   }
 

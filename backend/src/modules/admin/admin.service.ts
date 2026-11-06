@@ -429,7 +429,8 @@ export class AdminService {
       ];
     }
 
-    const sortField = query?.sortBy || 'createdAt';
+    const allowedAuditSort = ['createdAt', 'action', 'resource', 'actorId', 'ipAddress'];
+    const sortField = query?.sortBy && allowedAuditSort.includes(query.sortBy) ? query.sortBy : 'createdAt';
     const sortDir = query?.sortOrder === 'asc' ? 'asc' : 'desc';
 
     const [total, logs] = await Promise.all([
@@ -503,7 +504,8 @@ export class AdminService {
       ];
     }
 
-    const sortField = query?.sortBy || 'createdAt';
+    const allowedUserSort = ['createdAt', 'updatedAt', 'email', 'username', 'status'];
+    const sortField = query?.sortBy && allowedUserSort.includes(query.sortBy) ? query.sortBy : 'createdAt';
     const sortDir = query?.sortOrder === 'asc' ? 'asc' : 'desc';
 
     const [total, users] = await Promise.all([
@@ -1079,11 +1081,31 @@ export class AdminService {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
 
+    const safeActorId = adminId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(adminId) ? adminId : null;
+
     if (hardDelete) {
-      await this.prisma.user.delete({ where: { id } });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.loanRepayment.deleteMany({
+          where: { loan: { userId: id } },
+        });
+        await tx.loanSchedule.deleteMany({
+          where: { loan: { userId: id } },
+        });
+        await tx.loan.deleteMany({
+          where: { userId: id },
+        });
+        await tx.loanApplication.deleteMany({
+          where: { userId: id },
+        });
+        await tx.bankAccount.deleteMany({
+          where: { userId: id },
+        });
+        await tx.user.delete({ where: { id } });
+      });
+
       await this.prisma.auditLog.create({
         data: {
-          actorId: adminId || 'SYSTEM_ADMIN',
+          actorId: safeActorId,
           action: 'USER_PERMANENTLY_DELETED_BY_ADMIN',
           resource: 'User',
           resourceId: id,
@@ -1099,7 +1121,7 @@ export class AdminService {
 
       await this.prisma.auditLog.create({
         data: {
-          actorId: adminId || 'SYSTEM_ADMIN',
+          actorId: safeActorId,
           action: 'USER_DELETED_CLOSED_BY_ADMIN',
           resource: 'User',
           resourceId: id,
@@ -1230,7 +1252,8 @@ export class AdminService {
       ];
     }
 
-    const sortField = query?.sortBy || 'createdAt';
+    const allowedAccountSort = ['createdAt', 'updatedAt', 'accountNumber', 'accountName', 'currentBalance', 'availableBalance', 'status', 'type', 'currencyCode'];
+    const sortField = query?.sortBy && allowedAccountSort.includes(query.sortBy) ? query.sortBy : 'createdAt';
     const sortDir = query?.sortOrder === 'asc' ? 'asc' : 'desc';
 
     const [total, accounts] = await Promise.all([
@@ -1697,7 +1720,7 @@ export class AdminService {
     return { message: 'Transaction status set to PENDING', transaction: updated };
   }
 
-  async reverseTransaction(id: string, adminId: string) {
+  async reverseTransaction(id: string, adminId: string, reason: string = 'Administrative transaction reversal') {
     const transaction = await this.prisma.transaction.findUnique({
       where: { id },
       include: { sourceAccount: true, destinationAccount: true },
@@ -1707,21 +1730,48 @@ export class AdminService {
       throw new BadRequestException('Only completed transactions can be reversed');
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      const isCredit = transaction.type === TransactionType.DEPOSIT || transaction.type === TransactionType.ADJUSTMENT_CREDIT;
-      const mult = isCredit ? -1 : 1; // if was credit, debit it back
-      const delta = transaction.amount.mul(mult);
-      const targetAccountId = transaction.destinationAccountId || transaction.sourceAccountId;
+    const reversalReason = reason || 'Administrative transaction reversal';
 
-      if (targetAccountId) {
+    await this.prisma.$transaction(async (tx) => {
+      if (
+        transaction.type === TransactionType.TRANSFER_INTERNAL &&
+        transaction.sourceAccountId &&
+        transaction.destinationAccountId
+      ) {
+        // Refund sender (sourceAccountId)
         await tx.bankAccount.update({
-          where: { id: targetAccountId },
+          where: { id: transaction.sourceAccountId },
           data: {
-            currentBalance: { increment: delta },
-            availableBalance: { increment: delta },
-            ledgerBalance: { increment: delta },
+            currentBalance: { increment: transaction.amount },
+            availableBalance: { increment: transaction.amount },
+            ledgerBalance: { increment: transaction.amount },
           },
         });
+        // Reclaim from recipient (destinationAccountId)
+        await tx.bankAccount.update({
+          where: { id: transaction.destinationAccountId },
+          data: {
+            currentBalance: { decrement: transaction.netAmount },
+            availableBalance: { decrement: transaction.netAmount },
+            ledgerBalance: { decrement: transaction.netAmount },
+          },
+        });
+      } else {
+        const isCredit = transaction.type === TransactionType.DEPOSIT || transaction.type === TransactionType.ADJUSTMENT_CREDIT;
+        const mult = isCredit ? -1 : 1; // if was credit, debit it back
+        const delta = transaction.amount.mul(mult);
+        const targetAccountId = transaction.destinationAccountId || transaction.sourceAccountId;
+
+        if (targetAccountId) {
+          await tx.bankAccount.update({
+            where: { id: targetAccountId },
+            data: {
+              currentBalance: { increment: delta },
+              availableBalance: { increment: delta },
+              ledgerBalance: { increment: delta },
+            },
+          });
+        }
       }
 
       await tx.transaction.update({
@@ -1740,22 +1790,23 @@ export class AdminService {
           netAmount: transaction.amount,
           currencyCode: transaction.currencyCode,
           reference: `REV-${transaction.reference}`,
-          description: `Reversal of transaction ${transaction.reference}`,
+          description: `Reversal of transaction ${transaction.reference}: ${reversalReason}`,
         },
       });
 
       await tx.auditLog.create({
         data: {
-          actorId: adminId,
+          actorId: adminId || null,
           action: 'TRANSACTION_REVERSED',
           resource: 'Transaction',
           resourceId: id,
+          afterState: { reason: reversalReason },
         },
       });
     });
 
     try {
-      await this.notificationsService.dispatchTransferCancelled(transaction.userId, { ...transaction, status: TransactionStatus.REVERSED }, 'Administrative reversal');
+      await this.notificationsService.dispatchTransferCancelled(transaction.userId, { ...transaction, status: TransactionStatus.REVERSED }, reversalReason);
     } catch (e) {}
 
     return { message: 'Transaction reversed and balance adjusted' };
@@ -2162,12 +2213,12 @@ export class AdminService {
     if (query?.search) {
       const s = query.search.trim();
       where.OR = [
-        { reference: { contains: s, mode: 'insensitive' } },
-        { user: { email: { contains: s, mode: 'insensitive' } } },
-        { user: { username: { contains: s, mode: 'insensitive' } } },
-        { user: { profile: { firstName: { contains: s, mode: 'insensitive' } } } },
-        { user: { profile: { lastName: { contains: s, mode: 'insensitive' } } } },
-        { deposit: { paymentReference: { contains: s, mode: 'insensitive' } } },
+        { reference: { contains: s } },
+        { user: { email: { contains: s } } },
+        { user: { username: { contains: s } } },
+        { user: { profile: { firstName: { contains: s } } } },
+        { user: { profile: { lastName: { contains: s } } } },
+        { deposit: { paymentReference: { contains: s } } },
       ];
     }
 
@@ -2347,12 +2398,12 @@ export class AdminService {
     if (query?.search) {
       const s = query.search.trim();
       where.OR = [
-        { transaction: { reference: { contains: s, mode: 'insensitive' } } },
-        { account: { accountNumber: { contains: s, mode: 'insensitive' } } },
-        { account: { user: { email: { contains: s, mode: 'insensitive' } } } },
-        { account: { user: { username: { contains: s, mode: 'insensitive' } } } },
-        { account: { user: { profile: { firstName: { contains: s, mode: 'insensitive' } } } } },
-        { account: { user: { profile: { lastName: { contains: s, mode: 'insensitive' } } } } },
+        { transaction: { reference: { contains: s } } },
+        { account: { accountNumber: { contains: s } } },
+        { account: { user: { email: { contains: s } } } },
+        { account: { user: { username: { contains: s } } } },
+        { account: { user: { profile: { firstName: { contains: s } } } } },
+        { account: { user: { profile: { lastName: { contains: s } } } } },
       ];
     }
 
@@ -2916,7 +2967,8 @@ export class AdminService {
       ];
     }
 
-    const sortField = query?.sortBy || 'updatedAt';
+    const allowedKycSort = ['createdAt', 'updatedAt', 'submittedAt', 'status', 'tier'];
+    const sortField = query?.sortBy && allowedKycSort.includes(query.sortBy) ? query.sortBy : 'createdAt';
     const sortDir = query?.sortOrder === 'asc' ? 'asc' : 'desc';
 
     const [total, submissions] = await Promise.all([
@@ -3037,11 +3089,12 @@ export class AdminService {
   }
 
   async issueCard(dto: IssueCardAdminDto, adminId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
-    if (!user) throw new NotFoundException('User not found');
-
     const account = await this.prisma.bankAccount.findUnique({ where: { id: dto.accountId } });
     if (!account) throw new NotFoundException('Account not found');
+
+    const targetUserId = dto.userId || account.userId;
+    const user = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!user) throw new NotFoundException('User not found');
 
     const bin = dto.brand === 'VISA' ? '4111' : '5500';
     const last4 = Math.floor(1000 + Math.random() * 9000).toString();
@@ -3050,7 +3103,7 @@ export class AdminService {
 
     const card = await this.prisma.card.create({
       data: {
-        userId: dto.userId,
+        userId: targetUserId,
         accountId: dto.accountId,
         cardType: dto.cardType as CardType,
         brand: dto.brand as CardBrand,
@@ -3067,11 +3120,11 @@ export class AdminService {
 
     await this.prisma.auditLog.create({
       data: {
-        actorId: adminId,
+        actorId: adminId || null,
         action: 'CARD_ISSUED_BY_ADMIN',
         resource: 'Card',
         resourceId: card.id,
-        afterState: { maskedPan, cardType: dto.cardType, userId: dto.userId },
+        afterState: { maskedPan, cardType: dto.cardType, userId: targetUserId },
       },
     });
 
@@ -3082,18 +3135,36 @@ export class AdminService {
     const card = await this.prisma.card.findUnique({ where: { id } });
     if (!card) throw new NotFoundException('Card not found');
 
-    const isFrozen = dto.status === 'FROZEN';
+    let mappedStatus: CardStatus;
+    let isFrozen = card.isFrozen;
+
+    if (dto.status === 'FROZEN') {
+      mappedStatus = CardStatus.INACTIVE;
+      isFrozen = true;
+    } else if (dto.status === 'CANCELLED') {
+      mappedStatus = CardStatus.TERMINATED;
+      isFrozen = true;
+    } else if (dto.status === 'ACTIVE') {
+      mappedStatus = CardStatus.ACTIVE;
+      isFrozen = false;
+    } else {
+      mappedStatus = dto.status as CardStatus;
+      if (dto.status === 'BLOCKED') {
+        isFrozen = true;
+      }
+    }
+
     const updated = await this.prisma.card.update({
       where: { id },
       data: {
-        status: dto.status as CardStatus,
+        status: mappedStatus,
         isFrozen,
       },
     });
 
     await this.prisma.auditLog.create({
       data: {
-        actorId: adminId,
+        actorId: adminId || null,
         action: `CARD_STATUS_${dto.status}`,
         resource: 'Card',
         resourceId: id,
@@ -3390,11 +3461,11 @@ export class AdminService {
     if (query?.search) {
       const s = query.search.trim();
       where.OR = [
-        { purpose: { contains: s, mode: 'insensitive' } },
-        { user: { email: { contains: s, mode: 'insensitive' } } },
-        { user: { username: { contains: s, mode: 'insensitive' } } },
-        { user: { profile: { firstName: { contains: s, mode: 'insensitive' } } } },
-        { user: { profile: { lastName: { contains: s, mode: 'insensitive' } } } },
+        { purpose: { contains: s } },
+        { user: { email: { contains: s } } },
+        { user: { username: { contains: s } } },
+        { user: { profile: { firstName: { contains: s } } } },
+        { user: { profile: { lastName: { contains: s } } } },
       ];
     }
 
@@ -3727,11 +3798,11 @@ export class AdminService {
     if (query?.search) {
       const s = query.search.trim();
       where.OR = [
-        { loanReference: { contains: s, mode: 'insensitive' } },
-        { user: { email: { contains: s, mode: 'insensitive' } } },
-        { user: { username: { contains: s, mode: 'insensitive' } } },
-        { user: { profile: { firstName: { contains: s, mode: 'insensitive' } } } },
-        { user: { profile: { lastName: { contains: s, mode: 'insensitive' } } } },
+        { loanReference: { contains: s } },
+        { user: { email: { contains: s } } },
+        { user: { username: { contains: s } } },
+        { user: { profile: { firstName: { contains: s } } } },
+        { user: { profile: { lastName: { contains: s } } } },
       ];
     }
 
@@ -4109,6 +4180,7 @@ export class AdminService {
 
     const passwordHash = await CryptoUtil.hash(dto.password);
     const referralCode = `STF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const roleList = dto.roles || (dto.role ? [dto.role] : ['ADMIN']);
 
     const user = await this.prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
@@ -4130,7 +4202,7 @@ export class AdminService {
       });
 
       // Assign roles
-      for (const roleName of dto.roles) {
+      for (const roleName of roleList) {
         let role = await tx.role.findUnique({ where: { name: roleName.toUpperCase() } });
         if (!role) {
           role = await tx.role.create({
@@ -4155,11 +4227,11 @@ export class AdminService {
 
     await this.prisma.auditLog.create({
       data: {
-        actorId: adminId,
+        actorId: adminId || null,
         action: 'STAFF_USER_CREATED',
         resource: 'User',
         resourceId: user.id,
-        afterState: { email: user.email, username: user.username, roles: dto.roles },
+        afterState: { email: user.email, username: user.username, roles: roleList },
       },
     });
 
@@ -4170,16 +4242,20 @@ export class AdminService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
+    const roleList = dto.roles || dto.roleIds || [];
+
     await this.prisma.$transaction(async (tx) => {
       await tx.userRole.deleteMany({ where: { userId } });
 
-      for (const roleName of dto.roles) {
-        let role = await tx.role.findUnique({ where: { name: roleName.toUpperCase() } });
+      for (const roleNameOrId of roleList) {
+        let role =
+          (await tx.role.findUnique({ where: { name: roleNameOrId.toUpperCase() } })) ||
+          (await tx.role.findUnique({ where: { id: roleNameOrId } }));
         if (!role) {
           role = await tx.role.create({
             data: {
-              name: roleName.toUpperCase(),
-              description: `Custom ${roleName} role`,
+              name: roleNameOrId.toUpperCase(),
+              description: `Custom ${roleNameOrId} role`,
               isSystem: false,
             },
           });
@@ -4195,11 +4271,11 @@ export class AdminService {
 
       await tx.auditLog.create({
         data: {
-          actorId: adminId,
+          actorId: adminId || null,
           action: 'STAFF_ROLES_ASSIGNED',
           resource: 'UserRole',
           resourceId: userId,
-          afterState: { roles: dto.roles },
+          afterState: { roles: roleList },
         },
       });
     });
@@ -4241,7 +4317,8 @@ export class AdminService {
       ];
     }
 
-    const sortField = query?.sortBy || 'updatedAt';
+    const allowedTicketSort = ['createdAt', 'updatedAt', 'status', 'priority', 'category', 'ticketNumber'];
+    const sortField = query?.sortBy && allowedTicketSort.includes(query.sortBy) ? query.sortBy : 'updatedAt';
     const sortDir = query?.sortOrder === 'asc' ? 'asc' : 'desc';
 
     const [total, tickets] = await Promise.all([

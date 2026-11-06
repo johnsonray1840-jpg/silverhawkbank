@@ -228,12 +228,35 @@ export class LoansService {
       );
     }
 
-    const product = await this.prisma.loanProduct.findUnique({
-      where: { id: dto.productId },
-    });
+    let product = dto.productId
+      ? await this.prisma.loanProduct.findUnique({
+          where: { id: dto.productId },
+        })
+      : null;
 
     if (!product || !product.isActive) {
-      throw new NotFoundException('Loan product not found or inactive');
+      product = await this.prisma.loanProduct.findFirst({
+        where: { isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
+
+    if (!product) {
+      product = await this.prisma.loanProduct.create({
+        data: {
+          name: 'Personal Flexi Loan',
+          description: 'Standard personal credit facility',
+          minAmount: 100.0000,
+          maxAmount: 500000.0000,
+          interestRate: 5.50,
+          interestType: LoanInterestType.REDUCING_BALANCE,
+          minTenureMonths: 1,
+          maxTenureMonths: 120,
+          processingFeePercentage: 1.00,
+          latePenaltyPercentage: 2.00,
+          isActive: true,
+        },
+      });
     }
 
     const bankAccount = await this.prisma.bankAccount.findUnique({
@@ -248,7 +271,12 @@ export class LoansService {
       throw new ForbiddenException('Disbursement bank account is inactive or frozen');
     }
 
-    const principal = new Decimal(dto.principalAmount);
+    const rawPrincipal = dto.principalAmount ?? (dto.requestedAmount !== undefined ? String(dto.requestedAmount) : '');
+    if (!rawPrincipal || isNaN(Number(rawPrincipal)) || Number(rawPrincipal) <= 0) {
+      throw new BadRequestException('Valid loan principal amount is required');
+    }
+
+    const principal = new Decimal(rawPrincipal);
     const minAmount = new Decimal(product.minAmount.toString());
     const maxAmount = new Decimal(product.maxAmount.toString());
 

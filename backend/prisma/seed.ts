@@ -41,6 +41,7 @@ async function main() {
     { code: 'JPY', name: 'Japanese Yen', symbol: '¥', decimals: 0, isBase: false, isActive: true },
     { code: 'CHF', name: 'Swiss Franc', symbol: 'CHF', decimals: 2, isBase: false, isActive: true },
     { code: 'NGN', name: 'Nigerian Naira', symbol: '₦', decimals: 2, isBase: false, isActive: true },
+    { code: 'BTC', name: 'Bitcoin', symbol: '₿', decimals: 8, isBase: false, isActive: true },
   ];
 
   for (const curr of currenciesData) {
@@ -60,6 +61,7 @@ async function main() {
     { baseCurrency: 'USD', quoteCurrency: 'JPY', rate: 155.450000 },
     { baseCurrency: 'USD', quoteCurrency: 'CHF', rate: 0.908000 },
     { baseCurrency: 'USD', quoteCurrency: 'NGN', rate: 1480.000000 },
+    { baseCurrency: 'USD', quoteCurrency: 'BTC', rate: 0.000013 },
   ];
 
   for (const rate of exchangeRates) {
@@ -83,9 +85,12 @@ async function main() {
     // Assets (1000s)
     { accountCode: '1010', name: 'Cash & Vault Reserve', type: LedgerAccountType.ASSET, currencyCode: 'USD', isSystem: true },
     { accountCode: '1020', name: 'Paystack Settlement Clearing', type: LedgerAccountType.ASSET, currencyCode: 'USD', isSystem: true },
+    { accountCode: '1025', name: 'International Settlement Clearing', type: LedgerAccountType.ASSET, currencyCode: 'USD', isSystem: true },
     { accountCode: '1030', name: 'Flutterwave Settlement Clearing', type: LedgerAccountType.ASSET, currencyCode: 'USD', isSystem: true },
     { accountCode: '1040', name: 'Stripe Settlement Clearing', type: LedgerAccountType.ASSET, currencyCode: 'USD', isSystem: true },
     { accountCode: '1050', name: 'Loans Principal Receivable', type: LedgerAccountType.ASSET, currencyCode: 'USD', isSystem: true },
+    { accountCode: '1050-CARD-CLEARING', name: 'Card Settlement Clearing', type: LedgerAccountType.ASSET, currencyCode: 'USD', isSystem: true },
+    { accountCode: '1050-POS-TERMINAL-CLEARING', name: 'POS Terminal Settlement Clearing', type: LedgerAccountType.ASSET, currencyCode: 'USD', isSystem: true },
 
     // Liabilities (2000s)
     { accountCode: '2010', name: 'Customer Checking Deposits Liability', type: LedgerAccountType.LIABILITY, currencyCode: 'USD', isSystem: true },
@@ -99,6 +104,7 @@ async function main() {
 
     // Revenue (4000s)
     { accountCode: '4010', name: 'Transfer & Wire Fee Income', type: LedgerAccountType.REVENUE, currencyCode: 'USD', isSystem: true },
+    { accountCode: '4010-MDR-FEES', name: 'Merchant Discount Rate (MDR) Fee Income', type: LedgerAccountType.REVENUE, currencyCode: 'USD', isSystem: true },
     { accountCode: '4020', name: 'Loan Interest Income', type: LedgerAccountType.REVENUE, currencyCode: 'USD', isSystem: true },
     { accountCode: '4030', name: 'Loan Late Penalty Income', type: LedgerAccountType.REVENUE, currencyCode: 'USD', isSystem: true },
     { accountCode: '4040', name: 'Card Issuance & Maintenance Income', type: LedgerAccountType.REVENUE, currencyCode: 'USD', isSystem: true },
@@ -106,6 +112,7 @@ async function main() {
 
     // Expenses (5000s)
     { accountCode: '5010', name: 'Payment Gateway Processing Expenses', type: LedgerAccountType.EXPENSE, currencyCode: 'USD', isSystem: true },
+    { accountCode: '5010-INTEREST-EXPENSE', name: 'Customer Deposit Interest Expense', type: LedgerAccountType.EXPENSE, currencyCode: 'USD', isSystem: true },
     { accountCode: '5020', name: 'Customer Savings Interest Expense', type: LedgerAccountType.EXPENSE, currencyCode: 'USD', isSystem: true },
     { accountCode: '5030', name: 'Referral Commission Expense', type: LedgerAccountType.EXPENSE, currencyCode: 'USD', isSystem: true },
   ];

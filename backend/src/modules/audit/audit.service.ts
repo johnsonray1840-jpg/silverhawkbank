@@ -88,10 +88,10 @@ export class AuditService {
 
     if (query?.search) {
       where.OR = [
-        { action: { contains: query.search, mode: 'insensitive' } },
-        { resource: { contains: query.search, mode: 'insensitive' } },
-        { resourceId: { contains: query.search, mode: 'insensitive' } },
-        { actor: { email: { contains: query.search, mode: 'insensitive' } } },
+        { action: { contains: query.search } },
+        { resource: { contains: query.search } },
+        { resourceId: { contains: query.search } },
+        { actor: { email: { contains: query.search } } },
       ];
     }
 

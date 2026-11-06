@@ -42,7 +42,7 @@ WORKDIR /app
 RUN apk add --no-cache curl tzdata dumb-init
 
 ENV NODE_ENV=production
-ENV PORT=4000
+ENV PORT=3000
 
 # Create unprivileged system user for process isolation
 RUN addgroup -S silverhawk && adduser -S silverhawk -G silverhawk
@@ -58,9 +58,9 @@ USER silverhawk
 
 # Healthcheck probe
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:4000/api/v1/health || exit 1
+  CMD curl -f http://localhost:3000/api/v1/health || exit 1
 
-EXPOSE 4000
+EXPOSE 3000
 
 # Dumb-init handles PID 1 forwarding and graceful shutdown signals
 ENTRYPOINT ["dumb-init", "--"]
