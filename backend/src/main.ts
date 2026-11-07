@@ -25,10 +25,10 @@ async function bootstrap() {
     // 5. Referrer Policy
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-    // 6. Content Security Policy (CSP) - Compatible with Tailwind, Alpine.js, and FontAwesome CDNs
+    // 6. Content Security Policy (CSP) - Compatible with Tailwind, Alpine.js, FontAwesome, and Tawk.to Live Chat
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://kit.fontawesome.com https://ka-p.fontawesome.com https://cdn.socket.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://ka-p.fontawesome.com https://cdn.tailwindcss.com; font-src 'self' https://fonts.gstatic.com https://ka-p.fontawesome.com https://cdnjs.cloudflare.com data:; connect-src 'self' wss: ws: https:; frame-ancestors 'none'; object-src 'none';",
+      "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://kit.fontawesome.com https://ka-p.fontawesome.com https://cdn.socket.io https://*.tawk.to https://embed.tawk.to; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://ka-p.fontawesome.com https://cdn.tailwindcss.com https://*.tawk.to; font-src 'self' https://fonts.gstatic.com https://ka-p.fontawesome.com https://cdnjs.cloudflare.com https://*.tawk.to data:; connect-src 'self' wss: ws: https: wss://*.tawk.to https://*.tawk.to; frame-src 'self' https://*.tawk.to; frame-ancestors 'none'; object-src 'none';",
     );
 
     // 7. Permissions Policy (Hardware / Sensor lockdown)
