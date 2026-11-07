@@ -978,7 +978,7 @@ export class EmailService {
       this.configService.get<string>('SMTP_FROM') ||
       process.env.EMAIL_FROM ||
       process.env.SMTP_FROM ||
-      'Silverhawk Bank <support@silverhawkbank.onrender.com>';
+      'Silverhawk Bank <support@sovereignvaultcapital.ltd>';
 
     let dispatchStatus = 'SENT';
     let errorMessage: string | undefined;
