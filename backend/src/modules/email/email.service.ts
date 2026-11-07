@@ -178,10 +178,10 @@ export class EmailService {
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b1120; margin: 0; padding: 24px 12px; color: #1e293b; }
           .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); border: 1px solid #e2e8f0; }
-          .header { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
-          .header-logo { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: rgba(255, 255, 255, 0.18); border-radius: 12px; margin-bottom: 10px; font-size: 20px; }
-          .header h1 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.5px; }
-          .header p { margin: 4px 0 0; font-size: 13px; color: #e0f2fe; opacity: 0.95; font-weight: 500; }
+          .header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 32px 24px; text-align: center; color: #ffffff; border-bottom: 2px solid #0284c7; }
+          .header-logo-img { display: block; margin: 0 auto 14px auto; max-width: 220px; height: auto; border: none; }
+          .header h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #ffffff; }
+          .header p { margin: 6px 0 0; font-size: 13px; color: #94a3b8; font-weight: 500; }
           .content { padding: 32px 28px; background: #ffffff; }
           .badge-status { display: inline-block; font-weight: 800; padding: 6px 14px; border-radius: 9999px; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
           .badge-credit { background: #dcfce7; color: #15803d; }
@@ -204,7 +204,7 @@ export class EmailService {
       <body>
         <div class="container">
           <div class="header">
-            <div class="header-logo">🦅</div>
+            <img src="https://raw.githubusercontent.com/johnsonray1840-jpg/silverhawkbank/main/storage/app/public/photos/silverhawk_logo_dark.png" alt="Silverhawk Bank" class="header-logo-img" width="220" />
             <h1>Silverhawk Digital Federal Trust</h1>
             <p>Institutional Clearing &amp; Real-Time Settlement System</p>
           </div>
